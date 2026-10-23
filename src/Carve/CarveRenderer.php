@@ -33,6 +33,7 @@ use MarkupCarve\Carve\Transform\IncludeResolverInterface;
 use ReflectionFunction;
 use RuntimeException;
 use Throwable;
+use UnexpectedValueException;
 use UnitEnum;
 
 class CarveRenderer implements CarveRendererInterface
@@ -559,8 +560,12 @@ class CarveRenderer implements CarveRendererInterface
         }
         $options['cache'] = false;
         if ($cache['version'] !== null) {
-            $options['extensions'] = $this->versionedCacheValue($this->extensions($options));
-            $options['renderers'] = $this->versionedCacheValue($this->renderers($options));
+            try {
+                $options['extensions'] = $this->versionedCacheValue($this->extensions($options));
+                $options['renderers'] = $this->versionedCacheValue($this->renderers($options));
+            } catch (UnexpectedValueException) {
+                return null;
+            }
         }
 
         return $this->string($cache, 'prefix') . hash('sha256', serialize([CarveConverter::LIB_VERSION, $kind, $source, $cache['version'], $this->normalize($options)]));
@@ -569,15 +574,22 @@ class CarveRenderer implements CarveRendererInterface
     /**
      * @param mixed $value
      *
+     * @throws \UnexpectedValueException When a closure's captured values cannot be serialized.
+     *
      * @return mixed
      */
     private function versionedCacheValue(mixed $value): mixed
     {
         if ($value instanceof Closure) {
-            // Where a closure is defined is stable across requests and tells two closures apart.
+            // Definition site plus captured values: stable across requests, distinct per closure.
             $function = new ReflectionFunction($value);
+            try {
+                $captured = serialize([$function->getClosureScopeClass()?->getName(), $function->getStaticVariables()]);
+            } catch (Throwable $exception) {
+                throw new UnexpectedValueException('Closure state cannot be keyed.', 0, $exception);
+            }
 
-            return Closure::class . '@' . $function->getFileName() . ':' . $function->getStartLine() . '-' . $function->getEndLine();
+            return Closure::class . '@' . $function->getFileName() . ':' . $function->getStartLine() . '-' . $function->getEndLine() . '#' . hash('sha256', $captured);
         }
         if (is_array($value)) {
             return array_map($this->versionedCacheValue(...), $value);

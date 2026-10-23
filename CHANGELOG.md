@@ -17,7 +17,7 @@
 - `CarveHelper::file()`, `lint()` and `format()`.
 - Validation option `strict` fails on any parse warning and names them. It used to be passed to the engine as strict parsing, undocumented.
 - `rawHtml` (`strip`, `escape`, `allow`) sets raw HTML handling under `safeMode: true`; the default stays the engine's.
-- `cache.version` enters the cache key and allows caching extension instances, closures and `renderers`; a closure is keyed by where it is defined, so two different closures never share a cached result.
+- `cache.version` enters the cache key and allows caching extension instances, closures and `renderers`; a closure is keyed by where it is defined and the values it captures, and one whose captured values cannot be serialized is not cached.
 - `includeResolver` takes a custom include resolver; `IncludeCacheKeyProvider` lets it take part in the file cache.
 - `CarveRendererInterface` gains `toAnsi()`, `renderFileAs()`, and `lintFile()`, and `format()` gains an optional `$alignTables`; custom renderers need to implement these additions.
 

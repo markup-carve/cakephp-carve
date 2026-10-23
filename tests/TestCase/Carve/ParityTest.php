@@ -97,6 +97,50 @@ class ParityTest extends TestCase
         }
     }
 
+    public function testCacheVersionKeepsSameSiteClosuresWithDifferentCapturesApart(): void
+    {
+        Cache::setConfig('carve_captures', ['className' => 'Array']);
+        $source = "```mermaid\ngraph A\n```";
+        $renderer = static fn (string $label): Closure => static fn (string $s): string => '<b>' . $label . '</b>';
+        $options = static fn (Closure $render): array => [
+            'mode' => 'static',
+            'extensions' => ['mermaid'],
+            'renderers' => ['mermaid' => $render],
+            'cache' => ['config' => 'carve_captures', 'version' => 'v1'],
+        ];
+        try {
+            self::assertStringContainsString('<b>one</b>', (new CarveRenderer())->toHtml($source, $options($renderer('one'))));
+            self::assertStringContainsString('<b>two</b>', (new CarveRenderer())->toHtml($source, $options($renderer('two'))));
+        } finally {
+            Cache::drop('carve_captures');
+        }
+    }
+
+    public function testCacheVersionSkipsClosuresWhoseCapturesCannotBeKeyed(): void
+    {
+        Cache::setConfig('carve_unkeyable', ['className' => 'Array']);
+        $calls = 0;
+        $inner = static fn (): string => 'x';
+        $render = function (string $s) use (&$calls, $inner): string {
+            $calls++;
+
+            return '<b>' . $inner() . '</b>';
+        };
+        $options = [
+            'mode' => 'static',
+            'extensions' => ['mermaid'],
+            'renderers' => ['mermaid' => $render],
+            'cache' => ['config' => 'carve_unkeyable', 'version' => 'v1'],
+        ];
+        try {
+            (new CarveRenderer())->toHtml("```mermaid\ngraph A\n```", $options);
+            (new CarveRenderer())->toHtml("```mermaid\ngraph A\n```", $options);
+            self::assertSame(2, $calls, 'A closure capturing a closure cannot be keyed and must not be cached.');
+        } finally {
+            Cache::drop('carve_unkeyable');
+        }
+    }
+
     public function testConfiguredExtensionRunsOnEveryNonHtmlTarget(): void
     {
         $source = '[[Hello]]';
