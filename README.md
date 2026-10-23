@@ -2,6 +2,8 @@
 
 CakePHP 5 support for [Carve](https://github.com/markup-carve/carve-php) rendering, templates, validation, persistence, and commands.
 
+See [composer.json](composer.json) for supported versions and the [version map](https://github.com/markup-carve/cakephp-carve/wiki#cakephp-version-map) for which plugin line matches which CakePHP and carve-php release.
+
 ## Install
 
 ```sh
