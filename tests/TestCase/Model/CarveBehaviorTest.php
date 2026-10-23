@@ -79,6 +79,13 @@ class CarveBehaviorTest extends TestCase
             self::assertSame('<p><strong>hi</strong></p>', trim($html));
             self::assertSame('hi', trim($text));
 
+            $full = $table->get($entity->get('id'));
+            $full->set('body_text', 'forged');
+            $table->saveOrFail($full);
+            $regenerated = $table->get($entity->get('id'))->get('body_text');
+            self::assertIsString($regenerated);
+            self::assertSame('hi', trim($regenerated));
+
             $created = $table->newEntity(['title' => 'New', 'body_html' => '<script>alert(2)</script>']);
             $table->saveOrFail($created);
             self::assertNull($table->get($created->get('id'))->get('body_html'));

@@ -30,6 +30,7 @@ use MarkupCarve\Carve\SafeMode;
 use MarkupCarve\Carve\Transform\FilesystemIncludeResolver;
 use MarkupCarve\Carve\Transform\IncludeExpander;
 use MarkupCarve\Carve\Transform\IncludeResolverInterface;
+use ReflectionFunction;
 use RuntimeException;
 use Throwable;
 use UnitEnum;
@@ -573,7 +574,10 @@ class CarveRenderer implements CarveRendererInterface
     private function versionedCacheValue(mixed $value): mixed
     {
         if ($value instanceof Closure) {
-            return Closure::class;
+            // Where a closure is defined is stable across requests and tells two closures apart.
+            $function = new ReflectionFunction($value);
+
+            return Closure::class . '@' . $function->getFileName() . ':' . $function->getStartLine() . '-' . $function->getEndLine();
         }
         if (is_array($value)) {
             return array_map($this->versionedCacheValue(...), $value);

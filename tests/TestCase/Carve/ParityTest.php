@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MarkupCarve\CakeCarve\Test\TestCase\Carve;
 
+use Cake\Cache\Cache;
+use Closure;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Carve\IncludeCacheKeyProvider;
 use MarkupCarve\Carve\CarveConverter;
@@ -73,6 +75,26 @@ class ParityTest extends TestCase
         $escaping = (new SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ESCAPE);
         $actual = (new CarveRenderer())->toHtml($source, ['safeMode' => $escaping, 'rawHtml' => SafeMode::RAW_HTML_ALLOW]);
         self::assertSame((new CarveConverter(safeMode: $escaping))->convert($source), $actual);
+    }
+
+    public function testCacheVersionKeepsDifferentClosuresApart(): void
+    {
+        Cache::setConfig('carve_closures', ['className' => 'Array']);
+        $source = "```mermaid\ngraph A\n```";
+        $options = static fn (Closure $render): array => [
+            'mode' => 'static',
+            'extensions' => ['mermaid'],
+            'renderers' => ['mermaid' => $render],
+            'cache' => ['config' => 'carve_closures', 'version' => 'v1'],
+        ];
+        try {
+            $first = (new CarveRenderer())->toHtml($source, $options(static fn (string $s): string => '<b>first</b>'));
+            $second = (new CarveRenderer())->toHtml($source, $options(static fn (string $s): string => '<b>second</b>'));
+            self::assertStringContainsString('first', $first);
+            self::assertStringContainsString('second', $second);
+        } finally {
+            Cache::drop('carve_closures');
+        }
     }
 
     public function testConfiguredExtensionRunsOnEveryNonHtmlTarget(): void

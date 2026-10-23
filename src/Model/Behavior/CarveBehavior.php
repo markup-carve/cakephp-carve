@@ -52,7 +52,11 @@ class CarveBehavior extends Behavior
             if (is_array($spec) && isset($spec['preset']) && is_string($spec['preset'])) {
                 $fieldOptions['preset'] = $spec['preset'];
             }
-            if (!$entity->isDirty($source) && !$entity->isDirty($target) && $entity->get($target) !== null && $entity->get($target) !== '') {
+            $generatedDirty = false;
+            foreach ([is_array($spec) ? ($spec['text'] ?? null) : null, is_array($spec) ? ($spec['toc'] ?? null) : null] as $generated) {
+                $generatedDirty = $generatedDirty || (is_string($generated) && $entity->isDirty($generated));
+            }
+            if (!$generatedDirty && !$entity->isDirty($source) && !$entity->isDirty($target) && $entity->get($target) !== null && $entity->get($target) !== '') {
                 continue;
             }
             $body = $entity->get($source);
