@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
 - `labels`, `roundTripMode` and `renderers` options pass through to the engine.
 
 ## [0.1.0] - 2026-10-23
