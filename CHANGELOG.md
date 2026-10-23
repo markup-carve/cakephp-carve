@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-23
+
 - `carve render --format html|text|markdown|ansi` and `CarveRenderer::toAnsi()`.
 - `carve format --align-tables`; `format()` takes `$alignTables`.
 - `CarveHelper::file()`, `lint()` and `format()`.
