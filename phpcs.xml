@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<ruleset name="cakephp-carve">
+    <arg value="nps"/>
+    <arg name="cache" value=".phpcs.cache"/>
+    <file>src/</file>
+    <file>tests/</file>
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <rule ref="PhpCollective"/>
+    <rule ref="SlevomatCodingStandard.Functions.RequireTrailingCommaInDeclaration"/>
+    <rule ref="SlevomatCodingStandard.Functions.RequireTrailingCommaInClosureUse"/>
+</ruleset>

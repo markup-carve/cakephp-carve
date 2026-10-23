@@ -1,0 +1,60 @@
+{
+    "name": "markup-carve/cakephp-carve",
+    "description": "CakePHP plugin for Carve: rendering, views, validation, ORM behavior, commands and caching",
+    "license": "MIT",
+    "type": "cakephp-plugin",
+    "keywords": [
+        "cakephp",
+        "plugin",
+        "carve",
+        "markup",
+        "parser"
+    ],
+    "authors": [
+        {
+            "name": "Markup Carve",
+            "homepage": "https://github.com/markup-carve"
+        }
+    ],
+    "homepage": "https://github.com/markup-carve/cakephp-carve",
+    "support": {
+        "issues": "https://github.com/markup-carve/cakephp-carve/issues",
+        "source": "https://github.com/markup-carve/cakephp-carve"
+    },
+    "require": {
+        "php": "^8.2",
+        "cakephp/cakephp": "^5.1.1",
+        "markup-carve/carve-php": "^0.1.14"
+    },
+    "require-dev": {
+        "php-collective/code-sniffer": "^0.6.0",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.5 || ^12.0 || ^13.0"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "MarkupCarve\\CakeCarve\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MarkupCarve\\CakeCarve\\Test\\": "tests/",
+            "TestApp\\": "tests/test_app/src/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "cs-check": "phpcs -p",
+        "cs-fix": "phpcbf -p",
+        "stan": "phpstan analyse",
+        "stan-setup": "composer require --dev phpstan/phpstan:^2.0",
+        "test": "phpunit"
+    }
+}

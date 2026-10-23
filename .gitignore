@@ -1,0 +1,8 @@
+/vendor/
+/tmp/
+/_*/
+_*.md
+.phpcs.cache
+.phpunit.cache/
+composer.lock
+.phpunit.result.cache
