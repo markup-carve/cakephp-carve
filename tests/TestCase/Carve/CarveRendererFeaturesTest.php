@@ -63,14 +63,14 @@ class CarveRendererFeaturesTest extends TestCase
         $first = $renderer->render($source);
         $ref = new ReflectionMethod($renderer, 'cacheKey');
         $opts = new ReflectionMethod($renderer, 'options');
-        $key = $ref->invoke($renderer, $source, $opts->invoke($renderer, []));
+        $key = $ref->invoke($renderer, 'string', $source, $opts->invoke($renderer, []));
         self::assertIsString($key);
         self::assertSame($first, Cache::read($key, 'default'));
         self::assertSame($first, $renderer->render($source));
         $variants = [
-            $ref->invoke($renderer, $source, $opts->invoke($renderer, ['xhtml' => true])),
-            $ref->invoke($renderer, '# Two', $opts->invoke($renderer, [])),
-            $ref->invoke($renderer, $source, $opts->invoke($renderer, ['preset' => 'trusted'])),
+            $ref->invoke($renderer, 'string', $source, $opts->invoke($renderer, ['xhtml' => true])),
+            $ref->invoke($renderer, 'string', '# Two', $opts->invoke($renderer, [])),
+            $ref->invoke($renderer, 'string', $source, $opts->invoke($renderer, ['preset' => 'trusted'])),
         ];
         $allKeys = [$key];
         foreach ($variants as $variant) {
@@ -78,7 +78,7 @@ class CarveRendererFeaturesTest extends TestCase
             $allKeys[] = $variant;
         }
         self::assertCount(4, array_unique($allKeys));
-        self::assertNull($ref->invoke($renderer, $source, $opts->invoke($renderer, ['extensions' => [new TableOfContentsExtension()]])));
-        self::assertNull($ref->invoke($renderer, $source, $opts->invoke($renderer, ['extensions' => [['type' => 'wikilinks', 'url_generator' => static fn (): string => '/wiki']]])));
+        self::assertNull($ref->invoke($renderer, 'string', $source, $opts->invoke($renderer, ['extensions' => [new TableOfContentsExtension()]])));
+        self::assertNull($ref->invoke($renderer, 'string', $source, $opts->invoke($renderer, ['extensions' => [['type' => 'wikilinks', 'url_generator' => static fn (): string => '/wiki']]])));
     }
 }

@@ -114,7 +114,7 @@ class CarveRenderer implements CarveRendererInterface
     public function render(string $source, array $options = []): RenderedCarve
     {
         $options = $this->options($options);
-        $cacheKey = $this->cacheKey($source, $options);
+        $cacheKey = $this->cacheKey('string', $source, $options);
         if ($cacheKey !== null) {
             $cached = Cache::read($cacheKey, $this->cacheConfig($options));
             if ($cached instanceof RenderedCarve) {
@@ -155,7 +155,7 @@ class CarveRenderer implements CarveRendererInterface
             throw new InvalidArgumentException('Carve source must be inside includeRoot.');
         }
         $converter = $this->converter('html', $effective);
-        $resolver = new FilesystemIncludeResolver($this->string($effective, 'includeRoot'));
+        $resolver = new FilesystemIncludeResolver($root);
         $expander = new IncludeExpander($resolver, $real, source: $source, extensions: $converter->getExtensions());
         $document = $converter->transform($converter->parse($source), $expander);
         $warnings = $this->bool($effective, 'warnings')
@@ -179,7 +179,7 @@ class CarveRenderer implements CarveRendererInterface
                 ? hash_file('sha256', $target)
                 : null;
         }
-        $cacheKey = $this->cacheKey($source . serialize([$real, $states]), $effective);
+        $cacheKey = $this->cacheKey('file', serialize([$source, $real, $states]), $effective);
         if ($cacheKey !== null) {
             $cached = Cache::read($cacheKey, $this->cacheConfig($effective));
             if ($cached instanceof RenderedCarve) {
@@ -408,10 +408,11 @@ class CarveRenderer implements CarveRendererInterface
     /**
      * Cache is skipped for extension instances and closures because their mutable state cannot be represented in a stable key.
      *
+     * @param string $kind
      * @param string $source
      * @param array<string, mixed> $options
      */
-    private function cacheKey(string $source, array $options): ?string
+    private function cacheKey(string $kind, string $source, array $options): ?string
     {
         if (!is_array($options['cache'])) {
             return null;
@@ -428,7 +429,7 @@ class CarveRenderer implements CarveRendererInterface
         $cache = $options['cache'] + ['config' => 'default', 'prefix' => 'carve_'];
         $options['cache'] = false;
 
-        return $this->string($cache, 'prefix') . hash('sha256', serialize([CarveConverter::LIB_VERSION, $source, $this->normalize($options)]));
+        return $this->string($cache, 'prefix') . hash('sha256', serialize([CarveConverter::LIB_VERSION, $kind, $source, $this->normalize($options)]));
     }
 
     /**

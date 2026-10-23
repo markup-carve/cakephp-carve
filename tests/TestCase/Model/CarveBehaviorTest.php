@@ -47,6 +47,47 @@ class CarveBehaviorTest extends TestCase
         TableRegistry::getTableLocator()->clear();
     }
 
+    public function testGeneratedFieldsCannotBeSetWithoutTheSourceLoaded(): void
+    {
+        ConnectionManager::setConfig('carve_partial', [
+            'className' => 'Cake\\Database\\Connection',
+            'driver' => 'Cake\\Database\\Driver\\Sqlite',
+            'database' => ':memory:',
+        ]);
+        $connection = ConnectionManager::get('carve_partial');
+        self::assertInstanceOf(Connection::class, $connection);
+        $connection->execute('CREATE TABLE carve_posts (id INTEGER PRIMARY KEY, title TEXT, body TEXT, body_html TEXT, body_text TEXT)');
+        $table = new Table(['table' => 'carve_posts', 'connection' => $connection]);
+        $table->addBehavior('Carve', [
+            'className' => CarveBehavior::class,
+            'fields' => ['body' => ['target' => 'body_html', 'text' => 'body_text']],
+        ]);
+        try {
+            $entity = $table->newEntity(['body' => '*hi*']);
+            $table->saveOrFail($entity);
+
+            $partial = $table->find()->select(['id', 'body_html'])->where(['id' => $entity->get('id')])->firstOrFail();
+            $partial->set('body_html', '<script>alert(1)</script>');
+            $partial->set('body_text', 'forged');
+            $table->saveOrFail($partial);
+
+            $stored = $table->get($entity->get('id'));
+            $html = $stored->get('body_html');
+            $text = $stored->get('body_text');
+            self::assertIsString($html);
+            self::assertIsString($text);
+            self::assertSame('<p><strong>hi</strong></p>', trim($html));
+            self::assertSame('hi', trim($text));
+
+            $created = $table->newEntity(['title' => 'New', 'body_html' => '<script>alert(2)</script>']);
+            $table->saveOrFail($created);
+            self::assertNull($table->get($created->get('id'))->get('body_html'));
+        } finally {
+            ConnectionManager::drop('carve_partial');
+            TableRegistry::getTableLocator()->clear();
+        }
+    }
+
     public function testCleanDirtyEmptyPresetAndMissingField(): void
     {
         ConnectionManager::setConfig('carve_scenarios', [

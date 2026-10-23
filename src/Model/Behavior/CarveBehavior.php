@@ -33,11 +33,19 @@ class CarveBehavior extends Behavior
             if (!is_string($source) || (!is_string($spec) && !is_array($spec))) {
                 continue;
             }
-            if (!$entity->has($source)) {
-                continue;
-            }
             $target = is_string($spec) ? $spec : ($spec['target'] ?? $source . '_html');
             if (!is_string($target)) {
+                continue;
+            }
+            if (!$entity->has($source) && !$entity->isDirty($source)) {
+                // Without the source loaded there is nothing to render from, so a value set
+                // directly on a generated field must not reach the database unrendered.
+                foreach ([$target, is_array($spec) ? ($spec['text'] ?? null) : null, is_array($spec) ? ($spec['toc'] ?? null) : null] as $generated) {
+                    if (is_string($generated) && $entity->isDirty($generated)) {
+                        $entity->unset($generated);
+                    }
+                }
+
                 continue;
             }
             $fieldOptions = is_array($spec) && isset($spec['options']) && is_array($spec['options']) ? $spec['options'] : [];

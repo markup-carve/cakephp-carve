@@ -8,6 +8,6 @@ Pass an options array to a render method to override `Configure::read('Carve')`.
 
 Options resolve in this order: the plugin defaults, the `Carve` configuration, the selected preset, then the per-call options. `resolveOptions($options)` returns the result of that merge, which is what validation uses to check the same profile the renderer applies.
 
-`renderFile()` expands include directives only when `includeRoot` is an absolute path. Without a root, directives remain unexpanded. The engine confines included files to that root.
+`renderFile()` expands include directives only when `includeRoot` is set; a relative path resolves against the current working directory, so prefer an absolute one. Without a root, directives remain unexpanded. The engine confines included files to that root.
 
 The engine reports lint findings without severity. Validation uses a boolean `lint` option and optional rule ID filters.

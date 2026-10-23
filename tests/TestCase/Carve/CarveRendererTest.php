@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\CakeCarve\Test\TestCase\Carve;
 
+use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\TestSuite\CarveAssertionsTrait;
@@ -64,6 +65,54 @@ class CarveRendererTest extends TestCase
             file_put_contents($root . '/one.crv', "Changed.\n");
             self::assertStringContainsString('Changed.', $renderer->renderFile($root . '/main.crv')->html());
         } finally {
+            unlink($root . '/main.crv');
+            unlink($root . '/one.crv');
+            rmdir($root);
+        }
+    }
+
+    public function testRelativeIncludeRootExpandsIncludes(): void
+    {
+        $parent = sys_get_temp_dir();
+        $name = 'cakecarve-rel-' . bin2hex(random_bytes(5));
+        $root = $parent . '/' . $name;
+        mkdir($root);
+        file_put_contents($root . '/main.crv', "# Main\n\n{{ one.crv }}\n");
+        file_put_contents($root . '/one.crv', "Included.\n");
+        $cwd = getcwd();
+        try {
+            chdir($parent);
+            $result = (new CarveRenderer(['includeRoot' => $name]))->renderFile($root . '/main.crv');
+            self::assertStringContainsString('Included.', $result->html());
+        } finally {
+            if (is_string($cwd)) {
+                chdir($cwd);
+            }
+            unlink($root . '/main.crv');
+            unlink($root . '/one.crv');
+            rmdir($root);
+        }
+    }
+
+    public function testFileAndStringRendersDoNotShareCacheKeys(): void
+    {
+        Cache::setConfig('carve_kinds', ['className' => 'Array']);
+        $root = sys_get_temp_dir() . '/cakecarve-kind-' . bin2hex(random_bytes(5));
+        mkdir($root);
+        $source = "# Main\n\n{{ one.crv }}\n";
+        file_put_contents($root . '/main.crv', $source);
+        file_put_contents($root . '/one.crv', "Included.\n");
+        try {
+            $renderer = new CarveRenderer(['includeRoot' => $root, 'cache' => ['config' => 'carve_kinds']]);
+            self::assertStringContainsString('Included.', $renderer->renderFile($root . '/main.crv')->html());
+            $states = [(string)realpath($root . '/one.crv') => hash_file('sha256', $root . '/one.crv')];
+            $real = (string)realpath($root . '/main.crv');
+            // A string equal to what the file render hashes must render as itself, not as the cached file.
+            foreach ([$source . serialize([$real, $states]), serialize([$source, $real, $states])] as $crafted) {
+                self::assertStringNotContainsString('Included.', $renderer->toHtml($crafted));
+            }
+        } finally {
+            Cache::drop('carve_kinds');
             unlink($root . '/main.crv');
             unlink($root . '/one.crv');
             rmdir($root);

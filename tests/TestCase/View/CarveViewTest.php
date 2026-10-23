@@ -12,6 +12,26 @@ use ReflectionProperty;
 
 class CarveViewTest extends TestCase
 {
+    public function testPlaceholderValuesStayUnderSafeMode(): void
+    {
+        $root = sys_get_temp_dir() . '/cakecarve-ph-' . bin2hex(random_bytes(5));
+        mkdir($root);
+        file_put_contents($root . '/profile.crv', "Bio: {{bio}}\n");
+        Configure::write('App.paths.templates', [$root . '/']);
+        try {
+            $view = new CarveView();
+            $view->disableAutoLayout();
+            $view->set('bio', '[click](javascript:alert(1)){onclick="alert(2)"} <script>alert(3)</script>');
+            $html = $view->render('profile');
+            self::assertStringNotContainsString('javascript:', $html);
+            self::assertStringNotContainsString('onclick', $html);
+            self::assertStringNotContainsString('<script>', $html);
+        } finally {
+            unlink($root . '/profile.crv');
+            rmdir($root);
+        }
+    }
+
     public function testCrvTemplateAndVariables(): void
     {
         $root = sys_get_temp_dir() . '/cakecarve-view-' . bin2hex(random_bytes(5));
