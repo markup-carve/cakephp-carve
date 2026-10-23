@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace MarkupCarve\CakeCarve\Model\Behavior;
 
 use ArrayObject;
-use Cake\Core\Configure;
 use Cake\Event\EventInterface;
 use Cake\ORM\Behavior;
 use Cake\ORM\Entity;
-use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Carve\RendererFactory;
 
 class CarveBehavior extends Behavior
@@ -30,7 +28,7 @@ class CarveBehavior extends Behavior
         if (!is_array($fields)) {
             return;
         }
-        $renderer = RendererFactory::create(['className' => $this->getConfig('rendererClass') ?? Configure::read('Carve.className') ?? CarveRenderer::class]);
+        $renderer = RendererFactory::create(['rendererClass' => $this->getConfig('rendererClass')]);
         foreach ($fields as $source => $spec) {
             if (!is_string($source) || (!is_string($spec) && !is_array($spec))) {
                 continue;

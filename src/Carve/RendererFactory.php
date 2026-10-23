@@ -16,7 +16,8 @@ final class RendererFactory
      */
     public static function create(array $config = []): CarveRendererInterface
     {
-        $class = $config['className'] ?? Configure::read('Carve.className') ?? CarveRenderer::class;
+        // Not `className`: Cake's registries put the helper or behavior alias under that key.
+        $class = $config['rendererClass'] ?? Configure::read('Carve.rendererClass') ?? CarveRenderer::class;
         if (!is_string($class) || !is_a($class, CarveRendererInterface::class, true)) {
             throw new InvalidArgumentException('Invalid Carve renderer class.');
         }

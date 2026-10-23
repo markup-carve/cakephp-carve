@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace MarkupCarve\CakeCarve\Test\TestCase\View;
 
+use Cake\Core\Plugin;
 use Cake\View\View;
+use MarkupCarve\CakeCarve\CakeCarvePlugin;
 use MarkupCarve\CakeCarve\View\Helper\CarveHelper;
 use MarkupCarve\Carve\CarveConverter;
 use MarkupCarve\Carve\Renderer\MarkdownRenderer;
@@ -13,6 +15,21 @@ use PHPUnit\Framework\TestCase;
 
 class CarveHelperTest extends TestCase
 {
+    public function testLoadsThroughThePluginHelperName(): void
+    {
+        Plugin::getCollection()->add(new CakeCarvePlugin());
+        try {
+            $view = new View();
+            $helper = $view->loadHelper('MarkupCarve/CakeCarve.Carve', ['debug' => false]);
+            if (!$helper instanceof CarveHelper) {
+                self::fail('The plugin helper name did not resolve to CarveHelper.');
+            }
+            self::assertSame('<p><strong>b</strong></p>', $helper->convert('*b*'));
+        } finally {
+            Plugin::getCollection()->remove('MarkupCarve/CakeCarve');
+        }
+    }
+
     public function testHelperMethods(): void
     {
         $helper = new CarveHelper(new View(), ['debug' => true]);

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 return [
     'Carve' => [
-        'className' => \MarkupCarve\CakeCarve\Carve\CarveRenderer::class, // class-string; custom renderer class
+        'rendererClass' => \MarkupCarve\CakeCarve\Carve\CarveRenderer::class, // class-string; custom renderer class
         'safeMode' => true, // bool|'strict'; use 'strict' for untrusted comments
         'xhtml' => false, // bool; true emits self-closing tags
         'strict' => false, // bool; true throws on parse errors
