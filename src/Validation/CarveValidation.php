@@ -14,6 +14,8 @@ use function Cake\I18n\__d;
 
 final class CarveValidation
 {
+    private const LINT_FINDINGS_SHOWN = 3;
+
     /**
      * @param mixed $check
      * @param array<string, mixed> $options
@@ -58,13 +60,22 @@ final class CarveValidation
                 $allowed = is_array($allowed) ? $allowed : null;
                 $ignored = $options['ignoreLintRules'] ?? [];
                 $ignored = is_array($ignored) ? $ignored : [];
+                $findings = [];
                 foreach ($renderer->lint($check) as $finding) {
                     if (
                         ($allowed === null || in_array($finding['rule'], $allowed, true))
                         && !in_array($finding['rule'], $ignored, true)
                     ) {
-                        return __d('carve', 'Carve content has lint findings.');
+                        $findings[] = sprintf('%d:%d %s: %s', $finding['line'], $finding['column'], $finding['rule'], $finding['message']);
                     }
+                }
+                if ($findings) {
+                    $shown = implode('; ', array_slice($findings, 0, self::LINT_FINDINGS_SHOWN));
+                    $more = count($findings) - self::LINT_FINDINGS_SHOWN;
+
+                    return $more > 0
+                        ? __d('carve', 'Carve content has lint findings: {0} (and {1} more).', $shown, $more)
+                        : __d('carve', 'Carve content has lint findings: {0}', $shown);
                 }
             }
             $length = mb_strlen(trim($renderer->toText($check, $renderOptions)));

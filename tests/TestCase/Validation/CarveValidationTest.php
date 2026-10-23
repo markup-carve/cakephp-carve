@@ -48,6 +48,18 @@ class CarveValidationTest extends TestCase
         }
     }
 
+    public function testLintMessageNamesTheFindings(): void
+    {
+        self::assertSame(
+            'Carve content has lint findings: 1:1 unresolved-reference-link: Reference has no matching definition or heading.',
+            CarveValidation::valid('[x][nope]', ['lint' => true]),
+        );
+        $message = CarveValidation::valid('[a][x] [b][y] [c][z] [d][w] [e][v]', ['lint' => true]);
+        self::assertIsString($message);
+        self::assertStringEndsWith('(and 2 more).', $message);
+        self::assertSame(3, substr_count($message, 'unresolved-reference-link'));
+    }
+
     public function testLintFiltersAndPlainTextBoundaries(): void
     {
         $source = '**bold**';
