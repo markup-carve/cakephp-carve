@@ -45,9 +45,7 @@ class ConvertCommand extends Command
             }
             $output = $args->getOption('output');
             if (is_string($output)) {
-                if (file_put_contents($output, $result->value) === false) {
-                    throw new RuntimeException('Cannot write output file.');
-                }
+                AtomicWrite::write($output, $result->value);
             } else {
                 $io->out($result->value);
             }

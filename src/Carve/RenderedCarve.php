@@ -52,6 +52,19 @@ final class RenderedCarve implements JsonSerializable, Stringable
         return $this->warnings;
     }
 
+    /**
+     * @return array<array<string, mixed>>
+     */
+    public function dependencies(): array
+    {
+        return $this->dependencies;
+    }
+
+    public function suppressedWarnings(): int
+    {
+        return $this->suppressedWarnings;
+    }
+
     public function hasFrontmatter(): bool
     {
         return $this->frontmatter !== null;

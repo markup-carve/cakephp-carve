@@ -6,7 +6,7 @@ return [
     'Carve' => [
         'rendererClass' => \MarkupCarve\CakeCarve\Carve\CarveRenderer::class, // class-string; custom renderer class
         'safeMode' => true, // bool|'strict'; use 'strict' for untrusted comments
-        'rawHtml' => null, // null|'strip'|'escape'|'allow'; e.g. 'strip' when safeMode is on
+        'rawHtml' => null, // null|'strip'|'escape'|'allow'; applies only with safeMode true ('strict' and a SafeMode instance keep their own); 'allow' trusts author HTML
         'xhtml' => false, // bool; true emits self-closing tags
         'strict' => false, // bool; true throws on parse errors
         'warnings' => false, // bool; true records parse warnings
@@ -29,6 +29,7 @@ return [
             'trusted' => ['safeMode' => false],
         ],
         'cache' => false, // false|array; e.g. ['config' => 'default', 'prefix' => 'carve_', 'version' => 'v1']; version is string|null
+        'debug' => null, // null|bool; helper timing comment, defaults to the app's debug setting
     ],
     // Validation rule options: lint (bool, default false), lintRules and ignoreLintRules (arrays of rule IDs).
 ];

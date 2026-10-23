@@ -58,6 +58,14 @@ interface CarveRendererInterface
      */
     public function lint(string $source): array;
 
+    /**
+     * @param string $path
+     * @param array<string, mixed> $options
+     *
+     * @return array<array{rule: string, message: string, line: int, column: int, file: string|null}>
+     */
+    public function lintFile(string $path, array $options = []): array;
+
     public function import(string $source, string $from): ImportResult;
 
     /**

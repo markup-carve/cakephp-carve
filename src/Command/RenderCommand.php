@@ -10,7 +10,6 @@ use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
 use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\RendererFactory;
-use RuntimeException;
 use Throwable;
 
 class RenderCommand extends Command
@@ -36,9 +35,7 @@ class RenderCommand extends Command
             $html = RendererFactory::create()->renderFileAs($path, $format, $options);
             $output = $args->getOption('output');
             if (is_string($output)) {
-                if (file_put_contents($output, $html) === false) {
-                    throw new RuntimeException('Cannot write output file.');
-                }
+                AtomicWrite::write($output, $html);
             } else {
                 $io->out($html);
             }

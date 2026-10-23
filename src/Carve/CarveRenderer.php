@@ -18,6 +18,7 @@ use MarkupCarve\Carve\Extension\ExtensionInterface;
 use MarkupCarve\Carve\Extension\FrontmatterExtension;
 use MarkupCarve\Carve\Extension\TableOfContentsExtension;
 use MarkupCarve\Carve\Lint\DocumentLinter;
+use MarkupCarve\Carve\Lint\IncludeLinter;
 use MarkupCarve\Carve\Node\Document;
 use MarkupCarve\Carve\Profile;
 use MarkupCarve\Carve\Renderer\AnsiRenderer;
@@ -311,6 +312,44 @@ class CarveRenderer implements CarveRendererInterface
         ], (new DocumentLinter())->lint($source));
     }
 
+    /**
+     * @param string $path
+     * @param array<string, mixed> $options
+     *
+     * @throws \InvalidArgumentException
+     * @throws \RuntimeException
+     *
+     * @return array<array{rule: string, message: string, line: int, column: int, file: string|null}>
+     */
+    public function lintFile(string $path, array $options = []): array
+    {
+        $real = realpath($path);
+        if ($real === false || !is_file($real) || !is_readable($real)) {
+            throw new InvalidArgumentException('Unreadable Carve file: ' . $path);
+        }
+        $source = file_get_contents($real);
+        if ($source === false) {
+            throw new RuntimeException('Unable to read Carve file: ' . $path);
+        }
+        $effective = $this->options($options);
+        $resolver = null;
+        if ($effective['includeRoot'] !== null || $effective['includeResolver'] !== null) {
+            [$resolver] = $this->includeResolver($effective, $real);
+        }
+        $extensions = array_values(array_map(
+            static fn ($spec): ExtensionInterface => (new ExtensionFactory())->create($spec),
+            $this->extensions($effective),
+        ));
+
+        return array_map(static fn ($finding): array => [
+            'rule' => $finding->rule,
+            'message' => $finding->message,
+            'line' => $finding->line,
+            'column' => $finding->column,
+            'file' => $finding->file,
+        ], (new IncludeLinter())->lint($source, ['extensions' => $extensions], $resolver, $real));
+    }
+
     public function import(string $source, string $from): ImportResult
     {
         $converter = match ($from) {
@@ -391,8 +430,9 @@ class CarveRenderer implements CarveRendererInterface
         if ($rawHtml !== null && !in_array($rawHtml, [SafeMode::RAW_HTML_STRIP, SafeMode::RAW_HTML_ESCAPE, SafeMode::RAW_HTML_ALLOW], true)) {
             throw new InvalidArgumentException('Invalid Carve rawHtml.');
         }
-        if ($rawHtml !== null && $safeMode !== false) {
-            $safeMode = ($safeMode instanceof SafeMode ? clone $safeMode : new SafeMode())->setRawHtmlMode($rawHtml);
+        // Only plain safe mode is tunable; 'strict' and an explicit SafeMode keep their own raw handling.
+        if ($rawHtml !== null && $options['safeMode'] === true) {
+            $safeMode = (new SafeMode())->setRawHtmlMode($rawHtml);
         }
         $renderer = match ($target) {
             'text' => new PlainTextRenderer(),
@@ -416,16 +456,14 @@ class CarveRenderer implements CarveRendererInterface
             renderers: $this->renderers($options),
             labels: $this->stringMap($options, 'labels'),
         );
-        if ($target === 'html') {
-            $hasToc = false;
-            foreach ($this->extensions($options) as $spec) {
-                $extension = (new ExtensionFactory())->create($spec);
-                $hasToc = $hasToc || $extension instanceof TableOfContentsExtension;
-                $converter->addExtension($extension);
-            }
-            if (!$hasToc) {
-                $converter->addExtension(new TableOfContentsExtension());
-            }
+        $hasToc = false;
+        foreach ($this->extensions($options) as $spec) {
+            $extension = (new ExtensionFactory())->create($spec);
+            $hasToc = $hasToc || $extension instanceof TableOfContentsExtension;
+            $converter->addExtension($extension);
+        }
+        if ($target === 'html' && !$hasToc) {
+            $converter->addExtension(new TableOfContentsExtension());
         }
         $this->converters[$target] = $converter;
         $this->converterKeys[$target] = $key;

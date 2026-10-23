@@ -8,6 +8,7 @@ use Cake\Console\Arguments;
 use Cake\Console\CommandCollection;
 use Cake\Console\ConsoleIo;
 use Cake\Console\TestSuite\StubConsoleOutput;
+use Cake\Core\Configure;
 use MarkupCarve\CakeCarve\CakeCarvePlugin;
 use MarkupCarve\CakeCarve\Command\ConvertCommand;
 use MarkupCarve\CakeCarve\Command\FormatCommand;
@@ -15,6 +16,8 @@ use MarkupCarve\CakeCarve\Command\LintCommand;
 use MarkupCarve\CakeCarve\Command\RenderCommand;
 use MarkupCarve\Carve\CarveConverter;
 use MarkupCarve\Carve\Renderer\PlainTextRenderer;
+use MarkupCarve\Carve\Transform\IncludeContext;
+use MarkupCarve\Carve\Transform\IncludeResolverInterface;
 use PHPUnit\Framework\TestCase;
 
 class CommandTest extends TestCase
@@ -104,6 +107,29 @@ class CommandTest extends TestCase
                 unlink($file);
             }
             rmdir($root);
+        }
+    }
+
+    public function testLintCommandUsesConfiguredResolver(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'carve-command-lint-');
+        self::assertIsString($path);
+        file_put_contents($path, "{{ child.crv }}\n");
+        $errors = new StubConsoleOutput();
+        $io = new ConsoleIo(new StubConsoleOutput(), $errors);
+        $resolver = new class implements IncludeResolverInterface {
+            public function resolve(string $path, IncludeContext $context): ?string
+            {
+                return $path === 'child.crv' ? "**bold**\n" : null;
+            }
+        };
+        Configure::write('Carve.includeResolver', $resolver);
+        try {
+            self::assertSame(1, (new LintCommand())->execute(new Arguments([[$path]], [], ['files']), $io));
+            self::assertStringContainsString('child.crv', $errors->output());
+        } finally {
+            Configure::delete('Carve.includeResolver');
+            unlink($path);
         }
     }
 }

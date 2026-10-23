@@ -48,9 +48,7 @@ class FormatCommand extends Command
                     $io->err($path . ' needs formatting');
                     $failed = true;
                 } elseif ($args->getOption('write')) {
-                    if (file_put_contents($path, $formatted) === false) {
-                        throw new RuntimeException('Cannot write ' . $path);
-                    }
+                    AtomicWrite::write($path, $formatted);
                 } elseif (!$args->getOption('check')) {
                     $io->out($formatted, 0);
                 }

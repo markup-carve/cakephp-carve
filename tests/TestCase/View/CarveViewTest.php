@@ -82,20 +82,45 @@ class CarveViewTest extends TestCase
     {
         $root = sys_get_temp_dir() . '/cakecarve-seed-view-' . bin2hex(random_bytes(5));
         mkdir($root);
-        file_put_contents($root . '/safe.crv', "# Test\n\nA [dangerous link](javascript:alert(1)).");
+        file_put_contents($root . '/safe.crv', "# Test\n\n`<script>alert(1)</script>`{=html}\n\n[[Hello]]");
         Configure::write('App.paths.templates', [$root . '/']);
         try {
             $view = new CarveView();
             $view->disableAutoLayout();
             self::assertSame((new CarveRenderer())->toHtml((string)file_get_contents($root . '/safe.crv')), $view->render('safe'));
-            self::assertStringNotContainsString('javascript:', $view->render('safe'));
+            self::assertStringNotContainsString('<script>', $view->render('safe'));
             self::assertSame('.crv', (new ReflectionProperty($view, '_ext'))->getValue($view));
-            Configure::write('Carve', ['safeMode' => false]);
+            Configure::write('Carve', ['safeMode' => false, 'extensions' => ['wikilinks']]);
             $globalView = new CarveView();
             self::assertFalse($globalView->getConfig('safeMode'));
+            $globalView->disableAutoLayout();
+            $html = $globalView->render('safe');
+            self::assertStringContainsString('<script>', $html);
+            self::assertStringContainsString('<a ', $html);
+            self::assertStringNotContainsString('[[Hello]]', $html);
         } finally {
             Configure::delete('Carve');
             unlink($root . '/safe.crv');
+            rmdir($root);
+        }
+    }
+
+    public function testLayoutPlaceholderCannotAddContentSlot(): void
+    {
+        $root = sys_get_temp_dir() . '/cakecarve-slot-' . bin2hex(random_bytes(5));
+        mkdir($root . '/layout', 0777, true);
+        file_put_contents($root . '/article.crv', "---json\n{\"title\":\"A {{content}} B\"}\n---\n\nBody\n");
+        file_put_contents($root . '/layout/default.crv', "# {{carve.meta.title}}\n\n{{content}}\n");
+        Configure::write('App.paths.templates', [$root . '/']);
+        try {
+            $view = new CarveView(viewOptions: ['extensions' => ['frontmatter']]);
+            $html = $view->render('article');
+            self::assertSame(1, substr_count($html, '<p>Body</p>'));
+            self::assertStringContainsString('{{content}}', $html);
+        } finally {
+            unlink($root . '/article.crv');
+            unlink($root . '/layout/default.crv');
+            rmdir($root . '/layout');
             rmdir($root);
         }
     }

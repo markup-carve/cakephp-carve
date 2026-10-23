@@ -4,14 +4,21 @@
 
 ## [0.1.2] - 2026-10-23
 
+- `rawHtml` applies only to `safeMode: true`; `'strict'` and an explicit `SafeMode` instance keep their own raw HTML handling, so `allow` can no longer loosen them.
+- Render, convert, and format commands replace output files with checked atomic writes; they need write access to the target's directory, and a file owned by another user is refused rather than handed to the current user.
+- Configured extensions run for text, Markdown, and ANSI output.
+- Layout placeholder values cannot introduce a second `{{content}}` slot.
+- Diagram presets `d2`, `graphviz`, `wavedrom`, `abc`, `vega_lite`, and `chart` are available by name.
+- File render reports expose `dependencies()` and `suppressedWarnings()`.
+- `CarveRenderer::lintFile()` lints includes with the configured resolver; `carve lint` uses it.
 - `carve render --format html|text|markdown|ansi` and `CarveRenderer::toAnsi()`.
 - `carve format --align-tables`; `format()` takes `$alignTables`.
 - `CarveHelper::file()`, `lint()` and `format()`.
 - Validation option `strict` fails on any parse warning and names them. It used to be passed to the engine as strict parsing, undocumented.
-- `rawHtml` (`strip`, `escape`, `allow`) sets raw HTML handling under safe mode; the default stays the engine's.
+- `rawHtml` (`strip`, `escape`, `allow`) sets raw HTML handling under `safeMode: true`; the default stays the engine's.
 - `cache.version` enters the cache key and allows caching extension instances, closures and `renderers`.
 - `includeResolver` takes a custom include resolver; `IncludeCacheKeyProvider` lets it take part in the file cache.
-- `CarveRendererInterface` gains `toAnsi()` and `renderFileAs()`, and `format()` gains an optional `$alignTables`; custom renderers implementing it need all three.
+- `CarveRendererInterface` gains `toAnsi()`, `renderFileAs()`, and `lintFile()`, and `format()` gains an optional `$alignTables`; custom renderers need to implement these additions.
 
 ## [0.1.1] - 2026-10-23
 

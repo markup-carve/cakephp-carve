@@ -8,11 +8,7 @@ use Cake\Command\Command;
 use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
-use Cake\Core\Configure;
 use MarkupCarve\CakeCarve\Carve\RendererFactory;
-use MarkupCarve\Carve\Lint\IncludeLinter;
-use MarkupCarve\Carve\Transform\FilesystemIncludeResolver;
-use RuntimeException;
 use Throwable;
 
 class LintCommand extends Command
@@ -35,22 +31,11 @@ class LintCommand extends Command
         }
         foreach ($paths as $path) {
             try {
-                $source = file_get_contents($path);
-                if ($source === false) {
-                    throw new RuntimeException('Cannot read ' . $path);
-                }
-                $root = $args->getOption('include-root') ?? Configure::read('Carve.includeRoot');
-                if (is_string($root)) {
-                    $findings = (new IncludeLinter())->lint($source, [], new FilesystemIncludeResolver($root), realpath($path) ?: $path);
-                    foreach ($findings as $finding) {
-                        $io->err(sprintf('%s:%d:%d: %s: %s', $finding->file ?? $path, $finding->line, $finding->column, $finding->rule, $finding->message));
-                        $failed = true;
-                    }
-                } else {
-                    foreach (RendererFactory::create()->lint($source) as $finding) {
-                        $io->err(sprintf('%s:%d:%d: %s: %s', $path, $finding['line'], $finding['column'], $finding['rule'], $finding['message']));
-                        $failed = true;
-                    }
+                $root = $args->getOption('include-root');
+                $options = is_string($root) ? ['includeRoot' => $root] : [];
+                foreach (RendererFactory::create()->lintFile($path, $options) as $finding) {
+                    $io->err(sprintf('%s:%d:%d: %s: %s', $finding['file'] ?? $path, $finding['line'], $finding['column'], $finding['rule'], $finding['message']));
+                    $failed = true;
                 }
             } catch (Throwable $exception) {
                 $io->err($exception->getMessage());

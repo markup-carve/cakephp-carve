@@ -44,27 +44,26 @@ class CarveView extends View
         }
         $renderer = RendererFactory::create($this->getConfig());
         $isLayout = $this->_currentType === static::TYPE_LAYOUT;
-        $source = preg_replace_callback('/\{\{([A-Za-z_][A-Za-z0-9_.]*)\}\}/', function (array $match) use ($dataForView, $isLayout): string {
-            if ($isLayout && $match[1] === 'content') {
-                return $match[0];
-            }
-            $value = $dataForView;
-            foreach (explode('.', $match[1]) as $part) {
-                if (!is_array($value) || !array_key_exists($part, $value)) {
-                    return $match[0];
+        $parts = $isLayout ? explode('{{content}}', $source) : [$source];
+        $parts = array_map(static function (string $part) use ($dataForView): string {
+            return preg_replace_callback('/\{\{([A-Za-z_][A-Za-z0-9_.]*)\}\}/', static function (array $match) use ($dataForView): string {
+                $value = $dataForView;
+                foreach (explode('.', $match[1]) as $part) {
+                    if (!is_array($value) || !array_key_exists($part, $value)) {
+                        return $match[0];
+                    }
+                    $value = $value[$part];
                 }
-                $value = $value[$part];
-            }
 
-            return is_scalar($value) || $value instanceof Stringable ? (string)$value : $match[0];
-        }, $source) ?? $source;
+                return is_scalar($value) || $value instanceof Stringable ? (string)$value : $match[0];
+            }, $part) ?? $part;
+        }, $parts);
         if ($isLayout) {
-            $parts = explode('{{content}}', $source);
             $html = implode($this->fetch('content'), array_map($renderer->toHtml(...), $parts));
 
             return count($parts) === 1 ? $html . $this->fetch('content') : $html;
         }
-        $result = $renderer->render($source);
+        $result = $renderer->render($parts[0]);
         $this->set('carve', ['meta' => $result->meta(), 'toc' => $result->toc()]);
 
         return $result->html();

@@ -6,6 +6,7 @@ namespace MarkupCarve\CakeCarve\Carve;
 
 use InvalidArgumentException;
 use MarkupCarve\Carve\Extension\ExtensionInterface;
+use MarkupCarve\Carve\Extension\FencedRenderExtension;
 use ReflectionClass;
 use Throwable;
 
@@ -25,6 +26,13 @@ final class ExtensionFactory
             throw new InvalidArgumentException('Carve extension type must be a string.');
         }
         unset($config['type']);
+        if (in_array($type, ['d2', 'graphviz', 'wavedrom', 'abc', 'vega_lite', 'chart'], true)) {
+            if ($config !== []) {
+                throw new InvalidArgumentException('Unknown option for Carve extension ' . $type);
+            }
+
+            return FencedRenderExtension::{($type === 'vega_lite' ? 'vegaLite' : $type)}();
+        }
         if ($type === 'mermaid' || $type === 'plantuml') {
             $config += ['language' => $type === 'mermaid' ? 'mermaid' : ['plantuml', 'puml']];
             $type = 'fenced_render';

@@ -18,6 +18,12 @@ Load the plugin in your application:
 $this->addPlugin('MarkupCarve/CakeCarve');
 ```
 
+Load the helper in `AppView::initialize()`:
+
+```php
+$this->addHelper('MarkupCarve/CakeCarve.Carve');
+```
+
 ## Use
 
 ```php
@@ -27,12 +33,14 @@ $result = $carve->render('# Hello', ['preset' => 'comment']);
 $toc = $result->toc();
 $text = $carve->toText('Hello');
 $markdown = $carve->toMarkdown('Hello');
+$ansi = $carve->toAnsi('Hello');
+$file = $carve->renderFile('/path/to/article.crv');
 $formatted = $carve->format('Hello');
 $findings = $carve->lint('Hello');
 $imported = $carve->import('**Hello**', 'markdown');
 ```
 
-In a template, load the helper and call `$this->Carve->convert($source)`, `render()`, `text()`, `markdown()`, or `toc()`. For `.crv` templates, use `CarveView::class` as the controller view class. The view supplies `$carve['meta']` and `$carve['toc']` to layouts.
+In a template, call the helper's `convert`, `render`, `text`, `markdown`, `toc`, `file`, `lint`, or `format` methods. For `.crv` templates, use `CarveView::class` as the controller view class. The view supplies `$carve['meta']` and `$carve['toc']` to layouts.
 
 Add `CarveValidation::class` as a validator provider:
 
@@ -51,4 +59,4 @@ $this->addBehavior('MarkupCarve/CakeCarve.Carve', [
 
 Run `bin/cake carve render`, `carve convert`, `carve format`, or `carve lint` for file operations.
 
-See [the documentation](docs/README.md) and [configuration example](config/app.example.php).
+See [the documentation](https://github.com/markup-carve/cakephp-carve/tree/main/docs) and [configuration example](config/app.example.php).
