@@ -23,7 +23,7 @@
     },
     "require": {
         "php": "^8.2",
-        "cakephp/cakephp": "^5.1.1",
+        "cakephp/cakephp": "^5.2",
         "markup-carve/carve-php": "^0.1.14"
     },
     "require-dev": {
