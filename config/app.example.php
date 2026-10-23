@@ -16,6 +16,9 @@ return [
         'smartTypography' => null, // null|bool|SmartTypographyMode; e.g. true
         'symbols' => [], // array<string, string>; e.g. ['copy' => '©']
         'sourceLines' => false, // bool; e.g. true for editor previews
+        'labels' => [], // array<string, string>; UI strings the engine writes, keyed as HtmlRenderer::LABEL_DEFAULTS, e.g. ['footnoteBacklink' => 'Zurück zum Text']
+        'roundTripMode' => false, // bool; add round-trip carriers to HTML and Markdown output
+        'renderers' => [], // array<string, Closure(string): string>; build-time renderers for mermaid, chart or math in static mode; disables caching
         'includeRoot' => null, // null|absolute path; e.g. ROOT . '/content'
         'extensions' => [], // array of names, specs, classes or instances; e.g. ['frontmatter']
         'presets' => [ // array<string, array<string, mixed>>; e.g. 'preview' => ['sourceLines' => true]

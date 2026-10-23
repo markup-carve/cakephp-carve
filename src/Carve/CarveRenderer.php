@@ -64,7 +64,10 @@ class CarveRenderer implements CarveRendererInterface
             'softBreakMode' => null,
             'smartTypography' => null,
             'symbols' => [],
+            'labels' => [],
             'sourceLines' => false,
+            'roundTripMode' => false,
+            'renderers' => [],
             'includeRoot' => null,
             'extensions' => [],
             'cache' => false,
@@ -321,9 +324,12 @@ class CarveRenderer implements CarveRendererInterface
             softBreakMode: $options['softBreakMode'] === null ? null : SoftBreakMode::from($this->string($options, 'softBreakMode')),
             smartTypography: $this->smartTypography($options),
             mode: $this->string($options, 'mode'),
-            symbols: $this->symbols($options),
+            symbols: $this->stringMap($options, 'symbols'),
             renderer: $renderer,
             sourceLines: $this->bool($options, 'sourceLines'),
+            roundTripMode: $this->bool($options, 'roundTripMode'),
+            renderers: $this->renderers($options),
+            labels: $this->stringMap($options, 'labels'),
         );
         if ($target === 'html') {
             $hasToc = false;
@@ -415,6 +421,10 @@ class CarveRenderer implements CarveRendererInterface
                 return null;
             }
         }
+        // A closure has no stable identity across requests, so its output cannot be keyed.
+        if ($this->renderers($options) !== []) {
+            return null;
+        }
         $cache = $options['cache'] + ['config' => 'default', 'prefix' => 'carve_'];
         $options['cache'] = false;
 
@@ -481,24 +491,49 @@ class CarveRenderer implements CarveRendererInterface
 
     /**
      * @param array<string, mixed> $options
+     * @param string $key
      *
      * @throws \InvalidArgumentException
      *
      * @return array<string, string>
      */
-    private function symbols(array $options): array
+    private function stringMap(array $options, string $key): array
     {
-        $symbols = $options['symbols'] ?? null;
-        if (!is_array($symbols)) {
-            throw new InvalidArgumentException('Invalid Carve symbols.');
+        $map = $options[$key] ?? null;
+        if (!is_array($map)) {
+            throw new InvalidArgumentException('Invalid Carve ' . $key . '.');
         }
-        foreach ($symbols as $key => $value) {
-            if (!is_string($key) || !is_string($value)) {
-                throw new InvalidArgumentException('Invalid Carve symbols.');
+        foreach ($map as $name => $value) {
+            if (!is_string($name) || !is_string($value)) {
+                throw new InvalidArgumentException('Invalid Carve ' . $key . '.');
             }
         }
 
-        return $symbols;
+        return $map;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @throws \InvalidArgumentException
+     *
+     * @return array<string, \Closure(string): string>
+     */
+    private function renderers(array $options): array
+    {
+        $renderers = $options['renderers'] ?? null;
+        if (!is_array($renderers)) {
+            throw new InvalidArgumentException('Invalid Carve renderers.');
+        }
+        $valid = [];
+        foreach ($renderers as $name => $renderer) {
+            if (!is_string($name) || !$renderer instanceof Closure) {
+                throw new InvalidArgumentException('Invalid Carve renderers.');
+            }
+            $valid[$name] = $renderer;
+        }
+
+        return $valid;
     }
 
     /**

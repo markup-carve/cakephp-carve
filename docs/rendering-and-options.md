@@ -4,6 +4,8 @@ Create `new CarveRenderer()` and call `toHtml()`, `render()`, `renderFile()`, `t
 
 Pass an options array to a render method to override `Configure::read('Carve')`. `preset` selects a named option set. The built in presets are `default`, `comment` (strict safe mode and comment profile), and `trusted` (safe mode off). Set `safeMode` to `true`, `false`, or `'strict'`. Set `profile` to `full`, `article`, `comment`, `minimal`, or a `Profile` object. `onDisallowed` accepts `strip`, `to_text`, or `error`.
 
+`labels` overrides the strings the engine writes itself rather than the author, such as the footnote backlink or the table-of-contents label, keyed as in carve-php's `HtmlRenderer::LABEL_DEFAULTS`. `roundTripMode` adds round-trip carriers to HTML and Markdown output. `renderers` maps an extension name (`mermaid`, `chart`, `math`) to a closure that turns its source into HTML at build time; it applies in `static` mode.
+
 Options resolve in this order: the plugin defaults, the `Carve` configuration, the selected preset, then the per-call options. `resolveOptions($options)` returns the result of that merge, which is what validation uses to check the same profile the renderer applies.
 
 `renderFile()` expands include directives only when `includeRoot` is an absolute path. Without a root, directives remain unexpanded. The engine confines included files to that root.

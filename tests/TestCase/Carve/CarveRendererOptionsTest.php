@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\CakeCarve\Test\TestCase\Carve;
 
+use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
@@ -18,6 +19,7 @@ use MarkupCarve\Carve\Renderer\SoftBreakMode;
 use MarkupCarve\Carve\SafeMode;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use ReflectionProperty;
 
 class CarveRendererOptionsTest extends TestCase
@@ -95,6 +97,8 @@ class CarveRendererOptionsTest extends TestCase
             'symbols' => [['symbols' => ['copy' => 'X']], new CarveConverter(safeMode: true, symbols: ['copy' => 'X']), ':copy:'],
             'source lines' => [['sourceLines' => true], new CarveConverter(safeMode: true, sourceLines: true), '# Heading'],
             'xhtml' => [['xhtml' => true], new CarveConverter(safeMode: true, xhtml: true), "one\\\ntwo"],
+            'labels' => [['labels' => ['footnoteBacklink' => 'Zurück zum Text']], new CarveConverter(safeMode: true, labels: ['footnoteBacklink' => 'Zurück zum Text']), "text[^1]\n\n[^1]: note"],
+            'round trip' => [['roundTripMode' => true], new CarveConverter(safeMode: true, roundTripMode: true), "text[^1]\n\n[^1]: note"],
         ];
     }
 
@@ -114,9 +118,54 @@ class CarveRendererOptionsTest extends TestCase
         $extensions = $options['extensions'] ?? [];
         if (is_array($extensions) && in_array('spoiler', $extensions, true)) {
             self::assertNotSame((new CarveRenderer())->toHtml($source, ['extensions' => ['spoiler']]), $actual);
-        } elseif (array_key_exists('smartTypography', $options) || array_key_exists('symbols', $options)) {
+        } elseif (array_intersect_key($options, array_flip(['smartTypography', 'symbols', 'labels', 'roundTripMode'])) !== []) {
             self::assertNotSame((new CarveRenderer())->toHtml($source), $actual);
         }
+    }
+
+    public function testBuildTimeRenderersRenderInStaticModeAndSkipTheCache(): void
+    {
+        Cache::setConfig('carve_renderers', ['className' => 'Array']);
+        $calls = 0;
+        $options = [
+            'mode' => 'static',
+            'extensions' => ['mermaid'],
+            'renderers' => [
+
+                'mermaid' => function (string $source) use (&$calls): string {
+                    $calls++;
+
+                    return '<svg data-src="' . htmlspecialchars($source) . '"></svg>';
+                },
+            ],
+            'cache' => ['config' => 'carve_renderers'],
+        ];
+        try {
+            $renderer = new CarveRenderer();
+            $html = $renderer->toHtml("```mermaid\ngraph A\n```", $options);
+            self::assertStringContainsString('<svg data-src="graph A"></svg>', $html);
+            $renderer->toHtml("```mermaid\ngraph A\n```", $options);
+            self::assertSame(2, $calls, 'A closure renderer must not be served from the cache.');
+        } finally {
+            Cache::drop('carve_renderers');
+        }
+    }
+
+    public function testEveryEngineOptionIsAPluginOption(): void
+    {
+        $options = (new CarveRenderer())->resolveOptions();
+        foreach ((new ReflectionMethod(CarveConverter::class, '__construct'))->getParameters() as $parameter) {
+            if (in_array($parameter->getName(), ['parser', 'renderer'], true)) {
+                continue;
+            }
+            self::assertArrayHasKey($parameter->getName(), $options, 'carve-php option `' . $parameter->getName() . '` is not configurable through the plugin.');
+        }
+    }
+
+    public function testRenderersOnlyAcceptClosures(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        (new CarveRenderer())->toHtml('x', ['renderers' => ['mermaid' => 'strtoupper']]);
     }
 
     public function testStrictParseErrorMatchesEngine(): void
