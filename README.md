@@ -2,6 +2,8 @@
 
 CakePHP wrapper for [Carve](https://github.com/markup-carve/carve-php) rendering, templates, validation, persistence, and commands.
 
+**[View the live demo →](https://sandbox.dereuromark.de/sandbox/cake-carve-examples)**: presets and safe mode, validation, the ORM behavior and `.crv` views in a running CakePHP app.
+
 See [composer.json](composer.json) for supported versions and the [version map](https://github.com/markup-carve/cakephp-carve/wiki#cakephp-version-map) for which plugin line matches which CakePHP and carve-php release.
 
 ## Install
