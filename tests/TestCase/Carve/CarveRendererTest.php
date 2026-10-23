@@ -42,6 +42,14 @@ class CarveRendererTest extends TestCase
         self::assertSame([], $result->warnings());
     }
 
+    public function testYamlFrontmatterMeta(): void
+    {
+        $source = "---yaml\ntitle: Hello\nauthor:\n  name: Ann\n---\n\n# One\n";
+        $result = (new CarveRenderer(['extensions' => ['frontmatter']]))->render($source);
+        self::assertSame('Hello', $result->meta('title'));
+        self::assertSame('Ann', $result->meta('author.name'));
+    }
+
     public function testPerCallOptionsDoNotLeak(): void
     {
         $renderer = new CarveRenderer();

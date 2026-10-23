@@ -7,6 +7,7 @@
 - `CarveBehavior` no longer saves a generated field set directly while its source field is not loaded; such a value is discarded instead of stored unrendered.
 - File and string renders no longer share render cache keys.
 - A relative `includeRoot` now expands includes instead of failing.
+- `RenderedCarve::meta()` reads YAML frontmatter through `symfony/yaml` when installed; it used to need the `yaml` PHP extension and returned nothing without it.
 - `labels`, `roundTripMode` and `renderers` options pass through to the engine.
 
 ## [0.1.0] - 2026-10-23

@@ -6,6 +6,7 @@ namespace MarkupCarve\CakeCarve\Carve;
 
 use JsonSerializable;
 use Stringable;
+use Symfony\Component\Yaml\Yaml;
 use Throwable;
 
 final class RenderedCarve implements JsonSerializable, Stringable
@@ -56,23 +57,33 @@ final class RenderedCarve implements JsonSerializable, Stringable
         return $this->frontmatter !== null;
     }
 
+    /**
+     * CakePHP ships no YAML parser, so YAML needs symfony/yaml or ext-yaml; without either it yields no metadata.
+     *
+     * @return array<mixed>
+     */
+    private static function decode(string $format, string $content): array
+    {
+        try {
+            $data = match ($format) {
+                'json' => json_decode($content, true, flags: JSON_THROW_ON_ERROR),
+                'yaml', 'yml' => match (true) {
+                    class_exists(Yaml::class) => Yaml::parse($content),
+                    function_exists('yaml_parse') => yaml_parse($content),
+                    default => null,
+                },
+                default => null,
+            };
+        } catch (Throwable) {
+            return [];
+        }
+
+        return is_array($data) ? $data : [];
+    }
+
     public function meta(?string $key = null, mixed $default = null): mixed
     {
-        $meta = [];
-        if ($this->frontmatter !== null) {
-            try {
-                $content = $this->frontmatter['content'];
-                $format = $this->frontmatter['format'];
-                $parsed = match ($format) {
-                    'json' => json_decode($content, true, flags: JSON_THROW_ON_ERROR),
-                    'yaml', 'yml' => function_exists('yaml_parse') ? yaml_parse($content) : null,
-                    default => null,
-                };
-                $meta = is_array($parsed) ? $parsed : [];
-            } catch (Throwable) {
-                $meta = [];
-            }
-        }
+        $meta = $this->frontmatter !== null ? self::decode($this->frontmatter['format'], $this->frontmatter['content']) : [];
         if ($key === null) {
             return $meta;
         }
