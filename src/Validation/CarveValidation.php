@@ -34,11 +34,25 @@ final class CarveValidation
         }
         try {
             $renderer = RendererFactory::create(['warnings' => true]);
-            $renderOptions = array_intersect_key($options, array_flip(['preset', 'profile', 'onDisallowed', 'strict']));
+            $renderOptions = array_intersect_key($options, array_flip(['preset', 'profile', 'onDisallowed']));
+            $strict = $options['strict'] ?? false;
+            if (!is_bool($strict)) {
+                throw new InvalidArgumentException('Carve strict must be a boolean.');
+            }
+            if ($strict) {
+                $renderOptions['warnings'] = true;
+            }
             try {
-                $renderer->render($check, $renderOptions);
+                $rendered = $renderer->render($check, $renderOptions);
             } catch (ProfileViolationException) {
                 return __d('carve', 'Carve content contains markup disallowed by its profile.');
+            }
+            if ($strict && $rendered->warnings() !== []) {
+                [$shown, $more] = self::describe($rendered->warnings());
+
+                return $more > 0
+                    ? __d('carve', 'Carve content has parse warnings: {0} (and {1} more).', $shown, $more)
+                    : __d('carve', 'Carve content has parse warnings: {0}.', $shown);
             }
             $profileOption = $renderer->resolveOptions($renderOptions)['profile'] ?? null;
             if ($profileOption instanceof Profile || is_string($profileOption)) {
@@ -69,12 +83,11 @@ final class CarveValidation
                         ($allowed === null || in_array($finding['rule'], $allowed, true))
                         && !in_array($finding['rule'], $ignored, true)
                     ) {
-                        $findings[] = sprintf('%d:%d %s: %s', $finding['line'], $finding['column'], $finding['rule'], rtrim($finding['message'], '.'));
+                        $findings[] = $finding;
                     }
                 }
                 if ($findings) {
-                    $shown = implode('; ', array_slice($findings, 0, self::LINT_FINDINGS_SHOWN));
-                    $more = count($findings) - self::LINT_FINDINGS_SHOWN;
+                    [$shown, $more] = self::describe($findings);
 
                     return $more > 0
                         ? __d('carve', 'Carve content has lint findings: {0} (and {1} more).', $shown, $more)
@@ -95,6 +108,23 @@ final class CarveValidation
         }
 
         return true;
+    }
+
+    /**
+     * Lists the first findings as `line:column rule: message` and counts the rest.
+     *
+     * @param array<array{rule: string|null, message: string, line: int, column: int}> $items
+     *
+     * @return array{string, int}
+     */
+    private static function describe(array $items): array
+    {
+        $lines = array_map(
+            static fn (array $item): string => sprintf('%d:%d %s: %s', $item['line'], $item['column'], $item['rule'] ?? 'parse-warning', rtrim($item['message'], '.')),
+            array_slice($items, 0, self::LINT_FINDINGS_SHOWN),
+        );
+
+        return [implode('; ', $lines), count($items) - self::LINT_FINDINGS_SHOWN];
     }
 
     private static function profile(string $name): Profile

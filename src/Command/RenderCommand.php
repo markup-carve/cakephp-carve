@@ -8,6 +8,7 @@ use Cake\Command\Command;
 use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
+use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\RendererFactory;
 use RuntimeException;
 use Throwable;
@@ -18,6 +19,7 @@ class RenderCommand extends Command
     {
         return $parser->addArgument('file', ['required' => true])
             ->addOption('preset', ['help' => 'Rendering preset'])
+            ->addOption('format', ['help' => 'html, text, markdown or ansi', 'default' => 'html'])
             ->addOption('output', ['help' => 'Output file']);
     }
 
@@ -27,7 +29,11 @@ class RenderCommand extends Command
             $path = (string)$args->getArgument('file');
             $preset = $args->getOption('preset');
             $options = is_string($preset) ? ['preset' => $preset] : [];
-            $html = RendererFactory::create()->renderFile($path, $options)->html();
+            $format = $args->getOption('format') ?? 'html';
+            if (!in_array($format, ['html', 'text', 'markdown', 'ansi'], true)) {
+                throw new InvalidArgumentException('Unknown Carve render format: ' . (string)$format);
+            }
+            $html = RendererFactory::create()->renderFileAs($path, $format, $options);
             $output = $args->getOption('output');
             if (is_string($output)) {
                 if (file_put_contents($output, $html) === false) {

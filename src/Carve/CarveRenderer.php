@@ -20,6 +20,7 @@ use MarkupCarve\Carve\Extension\TableOfContentsExtension;
 use MarkupCarve\Carve\Lint\DocumentLinter;
 use MarkupCarve\Carve\Node\Document;
 use MarkupCarve\Carve\Profile;
+use MarkupCarve\Carve\Renderer\AnsiRenderer;
 use MarkupCarve\Carve\Renderer\MarkdownRenderer;
 use MarkupCarve\Carve\Renderer\PlainTextRenderer;
 use MarkupCarve\Carve\Renderer\SmartTypographyMode;
@@ -27,6 +28,7 @@ use MarkupCarve\Carve\Renderer\SoftBreakMode;
 use MarkupCarve\Carve\SafeMode;
 use MarkupCarve\Carve\Transform\FilesystemIncludeResolver;
 use MarkupCarve\Carve\Transform\IncludeExpander;
+use MarkupCarve\Carve\Transform\IncludeResolverInterface;
 use RuntimeException;
 use Throwable;
 use UnitEnum;
@@ -55,6 +57,7 @@ class CarveRenderer implements CarveRendererInterface
     {
         $defaults = [
             'safeMode' => true,
+            'rawHtml' => null,
             'xhtml' => false,
             'strict' => false,
             'warnings' => false,
@@ -69,6 +72,7 @@ class CarveRenderer implements CarveRendererInterface
             'roundTripMode' => false,
             'renderers' => [],
             'includeRoot' => null,
+            'includeResolver' => null,
             'extensions' => [],
             'cache' => false,
             'presets' => [
@@ -147,27 +151,23 @@ class CarveRenderer implements CarveRendererInterface
             throw new RuntimeException('Unable to read Carve file: ' . $path);
         }
         $effective = $this->options($options);
-        if ($effective['includeRoot'] === null) {
+        if ($effective['includeRoot'] === null && $effective['includeResolver'] === null) {
             return $this->render($source, $options);
         }
-        $root = realpath($this->string($effective, 'includeRoot'));
-        if ($root === false || !str_starts_with($real, rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
-            throw new InvalidArgumentException('Carve source must be inside includeRoot.');
-        }
+        [$resolver, $root] = $this->includeResolver($effective, $real);
         $converter = $this->converter('html', $effective);
-        $resolver = new FilesystemIncludeResolver($root);
         $expander = new IncludeExpander($resolver, $real, source: $source, extensions: $converter->getExtensions());
         $document = $converter->transform($converter->parse($source), $expander);
         $warnings = $this->bool($effective, 'warnings')
             ? array_map(self::warning(...), $converter->getWarnings())
             : [];
         $warnings = array_merge($warnings, array_map(self::warning(...), $expander->getWarnings()));
-        $root = rtrim($root, DIRECTORY_SEPARATOR);
+        $root = $root === null ? null : rtrim($root, DIRECTORY_SEPARATOR);
         $dependencies = array_map(static function ($dependency) use ($root): array {
             $target = $dependency->getTarget();
-            $relative = str_starts_with($target, $root . DIRECTORY_SEPARATOR)
+            $relative = $root === null ? $target : (str_starts_with($target, $root . DIRECTORY_SEPARATOR)
                 ? substr($target, strlen($root) + 1)
-                : '[outside-root]';
+                : '[outside-root]');
 
             return ['path' => $relative, 'resolved' => $dependency->isResolved()];
         }, $expander->getDependencies());
@@ -175,11 +175,17 @@ class CarveRenderer implements CarveRendererInterface
         $states = [];
         foreach ($expander->getDependencies() as $dependency) {
             $target = $dependency->getTarget();
-            $states[$target] = str_starts_with($target, $root . DIRECTORY_SEPARATOR) && is_file($target)
+            $states[$target] = $root !== null && str_starts_with($target, $root . DIRECTORY_SEPARATOR) && is_file($target)
                 ? hash_file('sha256', $target)
                 : null;
         }
+        if ($root === null) {
+            $states = $resolver instanceof IncludeCacheKeyProvider ? [$resolver->includeCacheKey($dependencies)] : [];
+        }
         $cacheKey = $this->cacheKey('file', serialize([$source, $real, $states]), $effective);
+        if ($root === null && !$resolver instanceof IncludeCacheKeyProvider) {
+            $cacheKey = null;
+        }
         if ($cacheKey !== null) {
             $cached = Cache::read($cacheKey, $this->cacheConfig($effective));
             if ($cached instanceof RenderedCarve) {
@@ -216,9 +222,80 @@ class CarveRenderer implements CarveRendererInterface
         return $converter->convert($source);
     }
 
-    public function format(string $source): string
+    public function toAnsi(string $source, array $options = []): string
     {
-        return CarveConverter::toCarve($source);
+        return $this->converter('ansi', $this->options($options))->convert($source);
+    }
+
+    /**
+     * @param string $path
+     * @param string $format
+     * @param array<string, mixed> $options
+     *
+     * @throws \InvalidArgumentException
+     * @throws \RuntimeException
+     */
+    public function renderFileAs(string $path, string $format, array $options = []): string
+    {
+        if ($format === 'html') {
+            return $this->renderFile($path, $options)->html();
+        }
+        if (!in_array($format, ['text', 'markdown', 'ansi'], true)) {
+            throw new InvalidArgumentException('Unknown Carve render format: ' . $format);
+        }
+        $real = realpath($path);
+        if ($real === false || !is_file($real) || !is_readable($real)) {
+            throw new InvalidArgumentException('Unreadable Carve file: ' . $path);
+        }
+        $source = file_get_contents($real);
+        if ($source === false) {
+            throw new RuntimeException('Unable to read Carve file: ' . $path);
+        }
+        $effective = $this->options($options);
+        if ($effective['includeRoot'] === null && $effective['includeResolver'] === null) {
+            return $this->converter($format, $effective)->convert($source);
+        }
+        [$resolver] = $this->includeResolver($effective, $real);
+        $converter = $this->converter($format, $effective);
+        $expander = new IncludeExpander($resolver, $real, source: $source, extensions: $converter->getExtensions());
+
+        return $converter->render($converter->transform($converter->parse($source), $expander));
+    }
+
+    /**
+     * The configured resolver, or the filesystem one confined to `includeRoot`; the root is null for a custom resolver.
+     *
+     * @param array<string, mixed> $effective
+     * @param string $real
+     *
+     * @throws \InvalidArgumentException
+     *
+     * @return array{\MarkupCarve\Carve\Transform\IncludeResolverInterface, string|null}
+     */
+    private function includeResolver(array $effective, string $real): array
+    {
+        if ($effective['includeResolver'] !== null) {
+            $resolver = $effective['includeResolver'];
+            if (is_string($resolver) && is_subclass_of($resolver, IncludeResolverInterface::class)) {
+                $resolver = new $resolver();
+            }
+            if (!$resolver instanceof IncludeResolverInterface) {
+                throw new InvalidArgumentException('Invalid Carve includeResolver.');
+            }
+
+            return [$resolver, null];
+        }
+        $root = realpath($this->string($effective, 'includeRoot'));
+        if ($root === false || !str_starts_with($real, rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            throw new InvalidArgumentException('Carve source must be inside includeRoot.');
+        }
+
+        return [new FilesystemIncludeResolver($root), $root];
+    }
+
+    public function format(string $source, bool $alignTables = false): string
+    {
+        return CarveConverter::toCarve($source, alignTables: $alignTables);
     }
 
     /**
@@ -310,9 +387,17 @@ class CarveRenderer implements CarveRendererInterface
         if (!is_bool($safeMode) && !$safeMode instanceof SafeMode) {
             throw new InvalidArgumentException('Invalid Carve safeMode.');
         }
+        $rawHtml = $options['rawHtml'];
+        if ($rawHtml !== null && !in_array($rawHtml, [SafeMode::RAW_HTML_STRIP, SafeMode::RAW_HTML_ESCAPE, SafeMode::RAW_HTML_ALLOW], true)) {
+            throw new InvalidArgumentException('Invalid Carve rawHtml.');
+        }
+        if ($rawHtml !== null && $safeMode !== false) {
+            $safeMode = ($safeMode instanceof SafeMode ? clone $safeMode : new SafeMode())->setRawHtmlMode($rawHtml);
+        }
         $renderer = match ($target) {
             'text' => new PlainTextRenderer(),
             'markdown' => new MarkdownRenderer(),
+            'ansi' => new AnsiRenderer(),
             default => null,
         };
         $converter = new CarveConverter(
@@ -365,7 +450,7 @@ class CarveRenderer implements CarveRendererInterface
      * @param string $source
      * @param \MarkupCarve\Carve\CarveConverter $converter
      * @param \MarkupCarve\Carve\Node\Document $document
-     * @param array<array<string, mixed>> $warnings
+     * @param array<array{rule: string|null, message: string, line: int, column: int}> $warnings
      * @param array<array<string, mixed>> $dependencies
      * @param int $suppressed
      */
@@ -393,7 +478,7 @@ class CarveRenderer implements CarveRendererInterface
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{rule: string|null, message: string, line: int, column: int}
      */
     private static function warning(ParseWarning $warning): array
     {
@@ -406,30 +491,57 @@ class CarveRenderer implements CarveRendererInterface
     }
 
     /**
-     * Cache is skipped for extension instances and closures because their mutable state cannot be represented in a stable key.
+     * Cache is skipped for mutable extensions and renderers unless the application supplies a cache version.
      *
      * @param string $kind
      * @param string $source
      * @param array<string, mixed> $options
+     *
+     * @throws \InvalidArgumentException
      */
     private function cacheKey(string $kind, string $source, array $options): ?string
     {
         if (!is_array($options['cache'])) {
             return null;
         }
-        foreach ($this->extensions($options) as $extension) {
-            if ($extension instanceof ExtensionInterface || $this->containsClosure($extension)) {
+        $cache = $options['cache'] + ['config' => 'default', 'prefix' => 'carve_', 'version' => null];
+        if ($cache['version'] !== null && !is_string($cache['version'])) {
+            throw new InvalidArgumentException('Invalid Carve cache version.');
+        }
+        if ($cache['version'] === null) {
+            foreach ($this->extensions($options) as $extension) {
+                if ($extension instanceof ExtensionInterface || $this->containsClosure($extension)) {
+                    return null;
+                }
+            }
+            if ($this->renderers($options) !== []) {
                 return null;
             }
         }
-        // A closure has no stable identity across requests, so its output cannot be keyed.
-        if ($this->renderers($options) !== []) {
-            return null;
-        }
-        $cache = $options['cache'] + ['config' => 'default', 'prefix' => 'carve_'];
         $options['cache'] = false;
+        if ($cache['version'] !== null) {
+            $options['extensions'] = $this->versionedCacheValue($this->extensions($options));
+            $options['renderers'] = $this->versionedCacheValue($this->renderers($options));
+        }
 
-        return $this->string($cache, 'prefix') . hash('sha256', serialize([CarveConverter::LIB_VERSION, $kind, $source, $this->normalize($options)]));
+        return $this->string($cache, 'prefix') . hash('sha256', serialize([CarveConverter::LIB_VERSION, $kind, $source, $cache['version'], $this->normalize($options)]));
+    }
+
+    /**
+     * @param mixed $value
+     *
+     * @return mixed
+     */
+    private function versionedCacheValue(mixed $value): mixed
+    {
+        if ($value instanceof Closure) {
+            return Closure::class;
+        }
+        if (is_array($value)) {
+            return array_map($this->versionedCacheValue(...), $value);
+        }
+
+        return $value;
     }
 
     /**

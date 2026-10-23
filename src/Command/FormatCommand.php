@@ -18,6 +18,7 @@ class FormatCommand extends Command
     {
         return $parser->addArgument('files', ['separator' => ',', 'required' => true])
             ->addOption('check', ['boolean' => true])
+            ->addOption('align-tables', ['boolean' => true])
             ->addOption('write', ['boolean' => true]);
     }
 
@@ -42,7 +43,7 @@ class FormatCommand extends Command
                 if ($source === false) {
                     throw new RuntimeException('Cannot read ' . $path);
                 }
-                $formatted = RendererFactory::create()->format($source);
+                $formatted = RendererFactory::create()->format($source, (bool)$args->getOption('align-tables'));
                 if ($args->getOption('check') && $formatted !== $source) {
                     $io->err($path . ' needs formatting');
                     $failed = true;

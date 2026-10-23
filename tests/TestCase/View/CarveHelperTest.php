@@ -7,6 +7,7 @@ namespace MarkupCarve\CakeCarve\Test\TestCase\View;
 use Cake\Core\Plugin;
 use Cake\View\View;
 use MarkupCarve\CakeCarve\CakeCarvePlugin;
+use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\View\Helper\CarveHelper;
 use MarkupCarve\Carve\CarveConverter;
 use MarkupCarve\Carve\Renderer\MarkdownRenderer;
@@ -38,6 +39,17 @@ class CarveHelperTest extends TestCase
         self::assertSame('Hello', $helper->text('Hello'));
         self::assertSame('Hello', $helper->markdown('Hello'));
         self::assertSame('Hello', $helper->toc('# Hello')[0]['text']);
+        $path = tempnam(sys_get_temp_dir(), 'carve-helper-');
+        self::assertIsString($path);
+        file_put_contents($path, 'Hello');
+        try {
+            self::assertSame((new CarveConverter(safeMode: true))->convert('Hello'), $helper->file($path));
+        } finally {
+            unlink($path);
+        }
+        self::assertSame((new CarveRenderer())->lint('**bold**'), $helper->lint('**bold**'));
+        $table = "| a | long |\n|---|---|\n| x | yy |\n";
+        self::assertSame(CarveConverter::toCarve($table, alignTables: true), $helper->format($table, true));
     }
 
     public function testTextMarkdownQuoteAndDebug(): void

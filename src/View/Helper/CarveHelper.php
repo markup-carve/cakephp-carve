@@ -59,6 +59,28 @@ class CarveHelper extends Helper
     }
 
     /**
+     * @param string $path
+     * @param array<string, mixed> $options
+     */
+    public function file(string $path, array $options = []): string
+    {
+        return $this->renderer()->renderFile($path, $options)->html();
+    }
+
+    /**
+     * @return array<array{rule: string, message: string, line: int, column: int}>
+     */
+    public function lint(string $source): array
+    {
+        return $this->renderer()->lint($source);
+    }
+
+    public function format(string $source, bool $alignTables = false): string
+    {
+        return $this->renderer()->format($source, $alignTables);
+    }
+
+    /**
      * @param string $source
      * @param array<string, mixed> $options
      */

@@ -16,7 +16,7 @@ final class RenderedCarve implements JsonSerializable, Stringable
      * @param string $html
      * @param array<array<string, mixed>> $toc
      * @param array{format: string, content: string}|null $frontmatter
-     * @param array<array<string, mixed>> $warnings
+     * @param array<array{rule: string|null, message: string, line: int, column: int}> $warnings
      * @param array<array<string, mixed>> $dependencies
      * @param int $suppressedWarnings
      */
@@ -45,7 +45,7 @@ final class RenderedCarve implements JsonSerializable, Stringable
     }
 
     /**
-     * @return array<array<string, mixed>>
+     * @return array<array{rule: string|null, message: string, line: int, column: int}>
      */
     public function warnings(): array
     {

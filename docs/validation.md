@@ -6,3 +6,5 @@ Register `CarveValidation::class` as a CakePHP validator provider and add the `v
 $validator->setProvider('carve', \MarkupCarve\CakeCarve\Validation\CarveValidation::class)
     ->add('body', 'carve', ['rule' => ['valid', ['profile' => 'comment']], 'provider' => 'carve']);
 ```
+
+Set `strict` to `true` to reject any engine parse warning. The error names up to three warnings with line, column, rule, and message.

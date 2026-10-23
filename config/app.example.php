@@ -6,6 +6,7 @@ return [
     'Carve' => [
         'rendererClass' => \MarkupCarve\CakeCarve\Carve\CarveRenderer::class, // class-string; custom renderer class
         'safeMode' => true, // bool|'strict'; use 'strict' for untrusted comments
+        'rawHtml' => null, // null|'strip'|'escape'|'allow'; e.g. 'strip' when safeMode is on
         'xhtml' => false, // bool; true emits self-closing tags
         'strict' => false, // bool; true throws on parse errors
         'warnings' => false, // bool; true records parse warnings
@@ -20,13 +21,14 @@ return [
         'roundTripMode' => false, // bool; add round-trip carriers to HTML and Markdown output
         'renderers' => [], // array<string, Closure(string): string>; build-time renderers for mermaid, chart or math in static mode; disables caching
         'includeRoot' => null, // null|absolute path; e.g. ROOT . '/content'
+        'includeResolver' => null, // null|IncludeResolverInterface|class-string; e.g. App\Carve\DatabaseResolver::class
         'extensions' => [], // array of names, specs, classes or instances; e.g. ['frontmatter']
         'presets' => [ // array<string, array<string, mixed>>; e.g. 'preview' => ['sourceLines' => true]
             'default' => [],
             'comment' => ['safeMode' => 'strict', 'profile' => 'comment'],
             'trusted' => ['safeMode' => false],
         ],
-        'cache' => false, // false|array; e.g. ['config' => 'default', 'prefix' => 'carve_']
+        'cache' => false, // false|array; e.g. ['config' => 'default', 'prefix' => 'carve_', 'version' => 'v1']; version is string|null
     ],
     // Validation rule options: lint (bool, default false), lintRules and ignoreLintRules (arrays of rule IDs).
 ];

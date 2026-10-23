@@ -64,6 +64,14 @@ class CarveValidationTest extends TestCase
         self::assertSame(3, substr_count($message, 'unresolved-reference-link'));
     }
 
+    public function testStrictRejectsEngineWarnings(): void
+    {
+        $source = "```carve\nunclosed";
+        self::assertNotSame([], (new CarveRenderer(['warnings' => true]))->render($source)->warnings());
+        self::assertSame(true, CarveValidation::valid($source));
+        self::assertSame('Carve content has parse warnings: 1:1 parse-warning: Unclosed code fence.', CarveValidation::valid($source, ['strict' => true]));
+    }
+
     public function testLintFiltersAndPlainTextBoundaries(): void
     {
         $source = '**bold**';

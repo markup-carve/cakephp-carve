@@ -11,3 +11,5 @@ Options resolve in this order: the plugin defaults, the `Carve` configuration, t
 `renderFile()` expands include directives only when `includeRoot` is set; a relative path resolves against the current working directory, so prefer an absolute one. Without a root, directives remain unexpanded. The engine confines included files to that root.
 
 The engine reports lint findings without severity. Validation uses a boolean `lint` option and optional rule ID filters.
+
+`toAnsi($source, $options)` renders terminal output with the engine ANSI renderer. Set `rawHtml` to `strip`, `escape`, or `allow` to control raw HTML when safe mode is on. The default, `null`, keeps the engine setting. Set `includeResolver` to an `IncludeResolverInterface` instance or class name to resolve includes through your own source. It takes precedence over `includeRoot`.

@@ -13,6 +13,8 @@ use MarkupCarve\CakeCarve\Command\ConvertCommand;
 use MarkupCarve\CakeCarve\Command\FormatCommand;
 use MarkupCarve\CakeCarve\Command\LintCommand;
 use MarkupCarve\CakeCarve\Command\RenderCommand;
+use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Renderer\PlainTextRenderer;
 use PHPUnit\Framework\TestCase;
 
 class CommandTest extends TestCase
@@ -22,6 +24,28 @@ class CommandTest extends TestCase
         $commands = (new CakeCarvePlugin())->console(new CommandCollection());
         foreach (['carve render', 'carve convert', 'carve format', 'carve lint'] as $name) {
             self::assertTrue($commands->has($name));
+        }
+    }
+
+    public function testRenderFormatsAndAlignedFormat(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'carve-command-');
+        self::assertIsString($path);
+        file_put_contents($path, "# Heading\n");
+        $output = new StubConsoleOutput();
+        $errors = new StubConsoleOutput();
+        $io = new ConsoleIo($output, $errors);
+        try {
+            self::assertSame(0, (new RenderCommand())->execute(new Arguments([$path], ['format' => 'text'], ['file']), $io));
+            self::assertStringContainsString(trim((new CarveConverter(renderer: new PlainTextRenderer(), safeMode: true))->convert("# Heading\n")), $output->output());
+            self::assertSame(1, (new RenderCommand())->execute(new Arguments([$path], ['format' => 'invalid'], ['file']), $io));
+            $table = "| a | long |\n|---|---|\n| x | yy |\n";
+            file_put_contents($path, $table);
+            self::assertSame(1, (new FormatCommand())->execute(new Arguments([[$path]], ['align-tables' => true, 'check' => true], ['files']), $io));
+            self::assertSame(0, (new FormatCommand())->execute(new Arguments([[$path]], ['align-tables' => true, 'write' => true], ['files']), $io));
+            self::assertSame(CarveConverter::toCarve($table, alignTables: true), file_get_contents($path));
+        } finally {
+            unlink($path);
         }
     }
 
