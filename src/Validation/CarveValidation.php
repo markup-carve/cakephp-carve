@@ -66,7 +66,7 @@ final class CarveValidation
                         ($allowed === null || in_array($finding['rule'], $allowed, true))
                         && !in_array($finding['rule'], $ignored, true)
                     ) {
-                        $findings[] = sprintf('%d:%d %s: %s', $finding['line'], $finding['column'], $finding['rule'], $finding['message']);
+                        $findings[] = sprintf('%d:%d %s: %s', $finding['line'], $finding['column'], $finding['rule'], rtrim($finding['message'], '.'));
                     }
                 }
                 if ($findings) {
@@ -75,7 +75,7 @@ final class CarveValidation
 
                     return $more > 0
                         ? __d('carve', 'Carve content has lint findings: {0} (and {1} more).', $shown, $more)
-                        : __d('carve', 'Carve content has lint findings: {0}', $shown);
+                        : __d('carve', 'Carve content has lint findings: {0}.', $shown);
                 }
             }
             $length = mb_strlen(trim($renderer->toText($check, $renderOptions)));
