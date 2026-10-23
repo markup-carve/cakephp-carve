@@ -14,6 +14,9 @@ use function Cake\I18n\__d;
 
 final class CarveValidation
 {
+    /**
+     * @var int
+     */
     private const LINT_FINDINGS_SHOWN = 3;
 
     /**
