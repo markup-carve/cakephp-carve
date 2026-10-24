@@ -1,15 +1,39 @@
 # Commands
 
+Use Cake's `carve` commands to process files from the shell.
+
+## Render a file
+
 ```sh
 bin/cake carve render article.crv --preset comment --output article.html
+bin/cake carve render article.crv --format ansi
+```
+
+`render` writes HTML by default. `--format` also accepts `text`, `markdown`, and `ansi`.
+
+## Convert existing markup
+
+```sh
 bin/cake carve convert --from markdown article.md --output article.crv --check-loss
+```
+
+`--from` accepts `markdown`, `html`, `djot`, or `bbcode`. `--check-loss` fails when conversion reports degraded or dropped content; review the result before replacing your original.
+
+## Format Carve files
+
+```sh
 bin/cake carve format --check article.crv
 bin/cake carve format --write article.crv
+```
+
+`--check` fails if formatting would change the file. `--write` applies it. Add `--align-tables` when you want padded table cells. This command also accepts directories and processes `.crv` files recursively.
+
+## Lint Carve files
+
+```sh
 bin/cake carve lint article.crv --include-root /absolute/content/root
 ```
 
-`format` and `lint` also accept directories and process their `.crv` files recursively. Each command exits with a nonzero status for unreadable files or processing errors. `format --check` fails when a file needs formatting. `lint` fails when it finds issues. `convert --check-loss` fails when migration diagnostics report degraded or dropped content.
+`lint` reports file, line, column, rule, and message. It accepts directories and exits with a nonzero status for findings or processing errors.
 
-`render --output`, `convert --output` and `format --write` write atomically: a temporary file in the target's directory replaces the target only once it is complete, so a failed write never leaves a truncated file. This needs write access to that directory, and a target owned by another user is refused rather than handed to the current user. Like `sed -i`, the replacement is a new file: its mode, owner and group are kept, but POSIX ACLs, extended attributes and hard links of the old file are not.
-
-`render --format` accepts `html` (the default), `text`, `markdown`, or `ansi`. For example, run `bin/cake carve render article.crv --format ansi`. `format --align-tables` passes table alignment to the engine formatter, including with `--check` and `--write`.
+Output writes use a temporary file in the target directory and replace the target after the write completes. The replacement keeps mode, owner, and group, but it does not keep POSIX ACLs, extended attributes, or old hard links. The target directory must be writable.
