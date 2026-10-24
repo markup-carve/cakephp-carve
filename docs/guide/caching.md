@@ -1,5 +1,22 @@
-# Caching
+# Cache rendered pages
 
-Caching is off by default. Configure `'cache' => ['config' => 'default', 'prefix' => 'carve_']` to use CakePHP Cache. Keys include source, effective options, and the carve-php version. Cache is skipped for extension instances, `renderers`, or options containing closures, because their state cannot be expressed by a stable key. File cache keys include the source path and hashes of included files, so edits to an included file invalidate the result.
+Enable caching when the same Carve source is rendered often and its output rarely changes. Caching is off by default.
 
-Set `cache.version` to an application managed string to cache extension instances, closure bearing specs, and `renderers`; change it when their behavior changes. A closure is keyed by its definition site and its captured values; when those values cannot be serialized, that render is not cached. A custom `includeResolver` skips file caching unless it implements `IncludeCacheKeyProvider::includeCacheKey()`. The provider key enters the file cache key.
+## Enable a CakePHP cache
+
+Put this under `Carve` in your app config:
+
+```php
+'cache' => [
+    'config' => 'default',
+    'prefix' => 'carve_',
+],
+```
+
+The cache key includes the source, effective options, and carve-php version. A different source or option set gets a different result. For files, the key also includes the path and hashes of included files, so editing an included file invalidates that result.
+
+## Handle custom extensions and includes
+
+Extension instances, `renderers`, and closure options may carry state the cache cannot identify. Those renders skip caching by default. Set `cache.version` to an app managed string to opt in, and change that string when extension behavior changes. Closures also need serializable captured values; otherwise that render still skips the cache.
+
+A custom `includeResolver` skips file caching unless it implements `IncludeCacheKeyProvider::includeCacheKey()`. Return a key that changes when your included content changes.

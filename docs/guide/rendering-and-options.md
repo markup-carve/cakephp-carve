@@ -1,40 +1,129 @@
 # Rendering and options
 
-Create `new CarveRenderer()` and call `toHtml()`, `render()`, `renderFile()`, `toText()`, or `toMarkdown()`. `render()` returns HTML, headings, frontmatter, and warnings through `RenderedCarve`. `meta()` decodes JSON frontmatter out of the box; YAML needs `symfony/yaml` (or the `yaml` PHP extension) installed in the app, and yields no metadata without one. `format()` uses the engine formatter. `lint()` returns rule, message, line, and column for each finding. `import()` accepts `markdown`, `html`, `djot`, and `bbcode` and returns `ImportResult` with text in `value`, engine diagnostics in `diagnostics`, and degraded or dropped findings from `losses()`.
+Use `CarveRenderer` when you need Carve output in PHP outside a template.
 
-Pass an options array to a render method to override `Configure::read('Carve')`. `preset` selects a named option set. The built in presets are `default`, `comment` (strict safe mode and comment profile), and `trusted` (safe mode off). Set `safeMode` to `true`, `false`, or `'strict'`. Set `profile` to `full`, `article`, `comment`, `minimal`, or a `Profile` object. `onDisallowed` accepts `strip`, `to_text`, or `error`.
+## Your first render
 
-`labels` overrides the strings the engine writes itself rather than the author, such as the footnote backlink or the table-of-contents label, keyed as in carve-php's `HtmlRenderer::LABEL_DEFAULTS`. `roundTripMode` adds round-trip carriers to HTML and Markdown output. `renderers` maps an extension name (`mermaid`, `chart`, `math`) to a closure that turns its source into HTML at build time; it applies in `static` mode.
+```php
+use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 
-Options resolve in this order: the plugin defaults, the `Carve` configuration, the selected preset, then the per-call options. `resolveOptions($options)` returns the result of that merge, which is what validation uses to check the same profile the renderer applies.
+$renderer = new CarveRenderer();
+echo $renderer->toHtml('Hello, *CakePHP*.');
+```
 
-`renderFile()` expands includes when `includeRoot` or a custom `includeResolver` is set. A relative `includeRoot` resolves against the current working directory, so prefer an absolute path. The filesystem resolver confines included files to its root. `lintFile($path, $options)` uses the same resolver selection and returns each finding with a `file` field. File render reports expose `dependencies()` and `suppressedWarnings()`.
+```html
+<p>Hello, <strong>CakePHP</strong>.</p>
+```
 
-The engine reports lint findings without severity. Validation uses a boolean `lint` option and optional rule ID filters.
+## Choose an output format
 
-`toAnsi($source, $options)` renders terminal output with the engine ANSI renderer. Set `rawHtml` to `strip`, `escape`, or `allow` to control raw HTML under `safeMode: true`. With `safeMode: 'strict'` or an explicit `SafeMode` instance, `rawHtml` is ignored and their own raw HTML handling applies. `allow` under `safeMode: true` passes raw HTML verbatim; use it only for trusted authors. The default, `null`, keeps the engine setting. Set `includeResolver` to an `IncludeResolverInterface` instance or class name to resolve includes through your own source. It takes precedence over `includeRoot`.
+| Method | Returns | Use for |
+| --- | --- | --- |
+| `toHtml($source)` | HTML string | Web pages. |
+| `render($source)` | `RenderedCarve` | HTML plus headings, metadata, and warnings. |
+| `toText($source)` | Plain text string | Search or previews. |
+| `toMarkdown($source)` | Markdown string | Export. |
+| `toAnsi($source)` | ANSI string | Terminal display. |
+| `renderFileAs($path, $format)` | String | Render a file as `html`, `text`, `markdown`, or `ansi`. |
+
+## Read the `RenderedCarve` result
+
+```php
+$result = $renderer->render('# Hello', ['warnings' => true]);
+echo $result->html();
+$headings = $result->toc();
+$warnings = $result->warnings();
+```
+
+```html
+<section id="Hello">
+  <h1>Hello</h1>
+</section>
+```
+
+`toc()` returns heading records with level, text, HTML, and anchor ID. `warnings()` returns parse findings when `warnings` is enabled. `hasFrontmatter()` reports whether frontmatter was found, and `meta()` decodes it. JSON works by default; YAML needs `symfony/yaml` or PHP's `yaml` extension.
+
+```php
+$result = $renderer->render("---json\n{\"title\":\"Hello\"}\n---\n# Hello\n", [
+    'extensions' => ['frontmatter'],
+]);
+echo $result->meta('title'); // Hello
+```
+
+## Use presets and safe mode
+
+The built-in presets are `default`, `comment`, and `trusted`. Use `comment` for visitor content. See [safe mode](safe-mode.md) for the trust rules.
+
+```php
+echo $renderer->toHtml('Hello, *CakePHP*.', ['preset' => 'comment']);
+```
+
+```html
+<p>Hello, <strong>CakePHP</strong>.</p>
+```
+
+## Combine options
+
+The merge order is renderer defaults, app `Carve` config, selected preset, then per-call options. The last value for a key wins. For example:
+
+```php
+$renderer = new CarveRenderer(['safeMode' => false]);
+$options = $renderer->resolveOptions([
+    'preset' => 'comment',
+    'profile' => 'minimal',
+]);
+// safeMode is 'strict'; profile is 'minimal'.
+```
+
+Here the constructor sets `safeMode` to `false`; the `comment` preset changes it to `strict`; the call changes only `profile`.
+
+## Render files and includes
+
+```php
+$result = $renderer->renderFile(ROOT . '/content/article.crv', [
+    'includeRoot' => ROOT . '/content',
+]);
+echo $result->html();
+```
+
+`includeRoot` confines filesystem includes to that root. Use an absolute path. A custom `includeResolver` takes precedence. File results also expose `dependencies()` and `suppressedWarnings()`. `lintFile($path, $options)` uses the same resolver selection.
+
+## Format, lint, and import
+
+```php
+$formatted = $renderer->format("Hello, *CakePHP*.\n");
+$findings = $renderer->lint("Hello, *CakePHP*.\n");
+$imported = $renderer->import('**bold**', 'markdown');
+echo $imported->value;
+```
+
+`lint()` findings contain rule, message, line, and column. `import()` accepts `markdown`, `html`, `djot`, and `bbcode`; inspect `diagnostics` and `losses()` before replacing source files. See [commands](commands.md) for file workflows.
 
 ## Options reference
 
-- `safeMode`: `true`, `false`, `'strict'`, or a `SafeMode` instance.
-- `rawHtml`: `null`, `strip`, `escape`, or `allow`; applies only under `safeMode: true`.
-- `profile`: `null`, `full`, `article`, `comment`, `minimal`, or a `Profile` instance.
-- `onDisallowed`: `strip`, `to_text`, or `error`.
-- `softBreakMode`: `null`, `newline`, `space`, or `br`.
-- `smartTypography`: `null`, a boolean, or `SmartTypographyMode` (`glyph`, `source`, `quotes-source`).
-- `sourceLines`: boolean; add source line attributes to rendered HTML.
-- `symbols`: map of symbol names to replacement strings.
-- `xhtml`: boolean; render XHTML style empty tags.
-- `mode`: `interactive` or `static`.
-- `strict`: boolean; throw on parse errors.
-- `warnings`: boolean; collect parse warnings in `RenderedCarve`.
-- `labels`: map of engine UI label names to strings.
-- `roundTripMode`: boolean; add round trip carriers to HTML and Markdown.
-- `renderers`: map of extension names to build time renderer closures.
-- `includeRoot`: `null` or a filesystem root path.
-- `includeResolver`: `null`, an `IncludeResolverInterface` instance, or its class name.
-- `extensions`: array of extension names, specs, classes, or instances.
-- `preset`: name of a configured preset; defaults to `default`.
-- `presets`: map of preset names to option maps.
-- `cache`: `false` or a map with `config`, `prefix`, and optional `version`.
-- `debug`: `null` or boolean; controls the helper timing comment.
+These defaults come from `CarveRenderer` and `config/app.example.php`.
+
+| Option | Values | Default | What it does |
+| --- | --- | --- | --- |
+| `safeMode` | `true`, `false`, `strict`, `SafeMode` | `true` | Controls the engine's safe rendering policy. |
+| `rawHtml` | `null`, `strip`, `escape`, `allow` | `null` | Handles explicit raw HTML under `safeMode: true`. |
+| `xhtml` | Boolean | `false` | Emits XHTML style empty tags. |
+| `strict` | Boolean | `false` | Throws on parse errors. |
+| `warnings` | Boolean | `false` | Collects parse warnings in the result. |
+| `profile` | `null`, `full`, `article`, `comment`, `minimal`, `Profile` | `null` | Limits allowed markup features. |
+| `onDisallowed` | `strip`, `to_text`, `error` | `strip` | Removes, converts, or rejects disallowed markup. |
+| `mode` | `interactive`, `static` | `interactive` | Selects interactive or build time rendering. |
+| `softBreakMode` | `null`, `newline`, `space`, `br` | `null` | Keeps a source line break, turns it into a space, or emits `<br>`. |
+| `smartTypography` | `null`, Boolean, `SmartTypographyMode` | `null` | Controls typographic substitutions. |
+| `symbols` | Name to string map | `[]` | Replaces named symbols. |
+| `sourceLines` | Boolean | `false` | Adds source line data to HTML. |
+| `labels` | Name to string map | `[]` | Replaces engine UI labels, such as footnote backlink text. |
+| `roundTripMode` | Boolean | `false` | Adds carriers for HTML or Markdown round trips. |
+| `renderers` | Name to closure map | `[]` | Renders extension blocks at build time in static mode. |
+| `includeRoot` | `null`, path | `null` | Sets the filesystem include boundary. |
+| `includeResolver` | `null`, resolver object or class | `null` | Supplies a custom include source. |
+| `extensions` | Names, specs, classes, instances | `[]` | Enables extra markup features. |
+| `presets` | Name to option map | `default`, `comment`, `trusted` | Defines reusable option sets. |
+| `preset` | Configured preset name | `default` | Selects an option set per call. |
+| `cache` | `false`, config map | `false` | Caches render results with CakePHP Cache. |
+| `debug` | `null`, Boolean | `null` | Controls helper timing comments; `null` follows app debug. |

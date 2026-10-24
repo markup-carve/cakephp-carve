@@ -43,6 +43,7 @@ export default defineConfig({
           items: [
             { text: 'Getting started', link: '/guide/' },
             { text: 'Installation', link: '/guide/installation' },
+            { text: 'Carve syntax', link: '/guide/carve-syntax' },
             { text: 'Configuration', link: '/guide/configuration' },
           ],
         },
@@ -50,6 +51,7 @@ export default defineConfig({
           text: 'Usage',
           items: [
             { text: 'Rendering and options', link: '/guide/rendering-and-options' },
+            { text: 'Safe mode', link: '/guide/safe-mode' },
             { text: 'Views and helper', link: '/guide/views-and-helper' },
             { text: 'Validation', link: '/guide/validation' },
             { text: 'Behavior', link: '/guide/behavior' },
