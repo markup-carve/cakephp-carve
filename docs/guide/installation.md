@@ -1,6 +1,6 @@
 # Installation
 
-Install the plugin in a CakePHP 5 application running PHP 8.2 or later. The package requires `cakephp/cakephp` 5.2 or later within major version 5 and `markup-carve/carve-php` 0.1.14 or later within the 0.1 series.
+Install the plugin in a CakePHP 5 application running PHP 8.2 or later. The package requires `cakephp/cakephp` 5.2 or later within major version 5 and `markup-carve/carve-php` 0.1.15 or later within the 0.1 series.
 
 ## Install and load the plugin
 
