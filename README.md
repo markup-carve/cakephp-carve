@@ -1,5 +1,13 @@
 # CakePHP Carve
 
+[![CI](https://github.com/markup-carve/cakephp-carve/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/markup-carve/cakephp-carve/actions/workflows/ci.yml?query=branch%3Amain)
+[![Coverage](https://img.shields.io/codecov/c/github/markup-carve/cakephp-carve/main.svg)](https://app.codecov.io/github/markup-carve/cakephp-carve/tree/main)
+[![PHPStan level](https://img.shields.io/badge/PHPStan-level%209-brightgreen.svg)](https://phpstan.org/)
+[![Latest Stable Version](https://poser.pugx.org/markup-carve/cakephp-carve/v/stable.svg)](https://packagist.org/packages/markup-carve/cakephp-carve)
+[![Minimum PHP Version](https://img.shields.io/badge/php-%3E%3D%208.2-8892BF.svg)](https://php.net/)
+[![License](https://poser.pugx.org/markup-carve/cakephp-carve/license.svg)](LICENSE)
+[![Total Downloads](https://poser.pugx.org/markup-carve/cakephp-carve/d/total.svg)](https://packagist.org/packages/markup-carve/cakephp-carve)
+
 CakePHP wrapper for [Carve](https://github.com/markup-carve/carve-php) rendering, templates, validation, persistence, and commands.
 
 **[View the live demo →](https://sandbox.dereuromark.de/sandbox/cake-carve-examples)**: presets and safe mode, validation, the ORM behavior and `.crv` views in a running CakePHP app.
@@ -59,4 +67,4 @@ $this->addBehavior('MarkupCarve/CakeCarve.Carve', [
 
 Run `bin/cake carve render`, `carve convert`, `carve format`, or `carve lint` for file operations.
 
-See [the documentation](https://github.com/markup-carve/cakephp-carve/tree/main/docs) and [configuration example](config/app.example.php).
+See [the documentation](https://markup-carve.github.io/cakephp-carve/) and [configuration example](config/app.example.php).
