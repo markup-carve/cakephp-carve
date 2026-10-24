@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-24
+
+Rendering and conversion now follow the published carve-php 0.1.15 engine.
+
+### Fixes
+
+- Table spans, wrapped attributes in definitions and quotes, and lone `+` markers follow the current Carve rules through carve-php 0.1.15.
+
+### Improvements
+
+- The guide now covers the plugin from installation through rendering, validation, caching, and commands (#3).
+
+**Full Changelog**: https://github.com/markup-carve/cakephp-carve/compare/0.1.2...0.1.3
+
 ## [0.1.2] - 2026-10-23
 
 - `rawHtml` applies only to `safeMode: true`; `'strict'` and an explicit `SafeMode` instance keep their own raw HTML handling, so `allow` can no longer loosen them.
