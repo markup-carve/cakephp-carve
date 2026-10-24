@@ -1,4 +1,4 @@
-# CakePHP Carve guide
+# Getting started
 
 - [Installation](installation.md)
 - [Rendering and options](rendering-and-options.md)

@@ -1,5 +1,5 @@
 name: CI
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -18,11 +18,27 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: mbstring, intl, sqlite3
+          coverage: ${{ matrix.php == '8.2' && matrix.dependencies == 'highest' && 'pcov' || 'none' }}
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ matrix.php }}-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
+          restore-keys: composer-${{ runner.os }}-${{ matrix.php }}-${{ matrix.dependencies }}-
       - run: composer update --no-interaction
         if: matrix.dependencies == 'highest'
       - run: composer update --prefer-lowest --no-interaction
         if: matrix.dependencies == 'lowest'
       - run: vendor/bin/phpunit
+        if: matrix.php != '8.2' || matrix.dependencies != 'highest'
+      - run: vendor/bin/phpunit --coverage-clover=coverage.xml
+        if: matrix.php == '8.2' && matrix.dependencies == 'highest'
+      - uses: codecov/codecov-action@v7
+        if: matrix.php == '8.2' && matrix.dependencies == 'highest'
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          fail_ci_if_error: false
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -31,6 +47,29 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-8.4-quality-${{ hashFiles('composer.json') }}
+          restore-keys: composer-${{ runner.os }}-8.4-quality-
       - run: composer install --no-interaction
-      - run: vendor/bin/phpstan analyse --memory-limit=1G
+      - run: vendor/bin/phpstan analyse --memory-limit=1G --error-format=github
       - run: vendor/bin/phpcs
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+        working-directory: docs
+      # VitePress logs a page render error but still exits 0.
+      - run: |
+          set -o pipefail
+          npm run docs:build 2>&1 | tee build.log
+          ! grep -E 'Error|dead link' build.log
+        working-directory: docs
