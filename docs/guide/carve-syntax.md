@@ -20,11 +20,11 @@ echo 'hello';
 
 > A short quote.
 
-|= Name |= Role |
-| Ada | Editor |
+|= Name |={>} Posts |
+| Ada | 12 |
 ````
 
-A heading starts with `#`. Links use `[label](url)`. A list needs a blank line before its first item. Code fences put the language directly after the backticks, with no space. `|=` marks table headers.
+A heading starts with `#`. Links use `[label](url)`. A list needs a blank line before its first item. Code fences put the language directly after the backticks, with no space. `|=` marks table headers, and `{>}` right after a cell marker right-aligns the column (`{<}` left, `{~}` center).
 
 ## Check the marks
 

@@ -25,6 +25,24 @@ class CarveRendererTest extends TestCase
         $this->assertCarveValid('Hello');
     }
 
+    public function testHtmlApiOmitsTheFinalLineFeed(): void
+    {
+        $renderer = new CarveRenderer();
+        self::assertSame("<p>one</p>\n<p>two</p>", $renderer->toHtml("one\n\ntwo\n"));
+        self::assertSame('<p>Hello</p>', $renderer->render('Hello')->html());
+
+        $root = sys_get_temp_dir() . '/carve-terminator-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/doc.crv', "Hello\n");
+        try {
+            self::assertSame('<p>Hello</p>', $renderer->renderFile($root . '/doc.crv')->html());
+            self::assertSame('<p>Hello</p>', $renderer->renderFile($root . '/doc.crv', ['includeRoot' => $root])->html());
+        } finally {
+            unlink($root . '/doc.crv');
+            rmdir($root);
+        }
+    }
+
     public function testImport(): void
     {
         $result = (new CarveRenderer())->import('**bold**', 'markdown');
