@@ -503,6 +503,10 @@ class CarveRenderer implements CarveRendererInterface
         int $suppressed = 0,
     ): RenderedCarve {
         $html = $converter->render($document);
+        // The HTML API returns a fragment without the final LF (spec 19, carve#3756).
+        if (str_ends_with($html, "\n")) {
+            $html = substr($html, 0, -1);
+        }
         $toc = [];
         $frontmatter = null;
         foreach ($converter->getExtensions() as $extension) {

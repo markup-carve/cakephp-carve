@@ -26,6 +26,8 @@ echo $renderer->toHtml('Hello, *CakePHP*.');
 | `toAnsi($source)` | ANSI string | Terminal display. |
 | `renderFileAs($path, $format)` | String | Render a file as `html`, `text`, `markdown`, or `ansi`. |
 
+HTML results from `toHtml()`, `render()->html()`, `renderFile()` and the helper are fragments without a final line feed, as the Carve HTML API specifies. Add your own line ending when you write one to a file.
+
 ## Read the `RenderedCarve` result
 
 ```php
