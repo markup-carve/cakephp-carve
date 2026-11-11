@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-11
+
+Rendering, conversion, linting and formatting now follow the published carve-php 0.1.17 engine.
+
+### Breaking
+
+- HTML results from `toHtml()`, `render()->html()`, `renderFile()`, `CarveHelper` and `CarveView` no longer end with a final line feed, as the Carve HTML API specifies (#6).
+- HTML import no longer reads `data-djot-*` attributes (markup-carve/carve#5735).
+- The lint rule alias `a11y/heading-jump` is gone; use `heading-level-skip` in disable comments and rule lists.
+
+### Improvements
+
+- Requires `markup-carve/carve-php` 0.1.17.
+- `carve format` writes thematic breaks as `***`, header cells as `|=`, and table alignment in braces (`|={>}`). The old `|=>` spelling is still read and is reported by the `deprecated-cell-alignment` lint rule.
+
+**Full Changelog**: https://github.com/markup-carve/cakephp-carve/compare/0.1.3...0.1.4
+
 ## [0.1.3] - 2026-10-24
 
 Rendering and conversion now follow the published carve-php 0.1.15 engine.
