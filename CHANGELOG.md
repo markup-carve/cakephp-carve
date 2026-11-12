@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.1.4] - 2026-11-11
+## [0.1.4] - 2026-11-12
 
 Rendering, conversion, linting and formatting now follow the published carve-php 0.1.17 engine.
 
