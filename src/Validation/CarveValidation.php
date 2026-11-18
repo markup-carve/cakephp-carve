@@ -6,9 +6,6 @@ namespace MarkupCarve\CakeCarve\Validation;
 
 use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\RendererFactory;
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Exception\ProfileViolationException;
-use MarkupCarve\Carve\Profile;
 use Throwable;
 use function Cake\I18n\__d;
 
@@ -33,19 +30,17 @@ final class CarveValidation
             return __d('carve', 'Carve content must be text.');
         }
         try {
-            $renderer = RendererFactory::create(['warnings' => true]);
-            $renderOptions = array_intersect_key($options, array_flip(['preset', 'profile', 'onDisallowed']));
+            $renderer = RendererFactory::create();
+            $renderOptions = array_intersect_key($options, array_flip(['preset', 'profile', 'rawHtml', 'urlPolicy']));
             $strict = $options['strict'] ?? false;
             if (!is_bool($strict)) {
                 throw new InvalidArgumentException('Carve strict must be a boolean.');
             }
-            if ($strict) {
-                $renderOptions['warnings'] = true;
-            }
-            try {
-                $rendered = $renderer->render($check, $renderOptions);
-            } catch (ProfileViolationException) {
-                return __d('carve', 'Carve content contains markup disallowed by its profile.');
+            $rendered = $renderer->render($check, $renderOptions);
+            foreach ($rendered->warnings() as $warning) {
+                if (str_starts_with($warning['rule'] ?? '', 'profile-')) {
+                    return __d('carve', 'Carve content contains markup disallowed by its profile.');
+                }
             }
             if ($strict && $rendered->warnings() !== []) {
                 [$shown, $more] = self::describe($rendered->warnings());
@@ -53,15 +48,6 @@ final class CarveValidation
                 return $more > 0
                     ? __d('carve', 'Carve content has parse warnings: {0} (and {1} more).', $shown, $more)
                     : __d('carve', 'Carve content has parse warnings: {0}.', $shown);
-            }
-            $profileOption = $renderer->resolveOptions($renderOptions)['profile'] ?? null;
-            if ($profileOption instanceof Profile || is_string($profileOption)) {
-                $profile = $profileOption instanceof Profile ? clone $profileOption : self::profile($profileOption);
-                $profileRenderer = new CarveConverter(profile: $profile);
-                $profileRenderer->parse($check);
-                if ($profileRenderer->hasProfileViolations()) {
-                    return __d('carve', 'Carve content contains markup disallowed by its profile.');
-                }
             }
             $lint = $options['lint'] ?? false;
             if (!is_bool($lint)) {
@@ -94,7 +80,7 @@ final class CarveValidation
                         : __d('carve', 'Carve content has lint findings: {0}.', $shown);
                 }
             }
-            $length = mb_strlen(trim($renderer->toText($check, $renderOptions)));
+            $length = $renderer->textLength($check, $renderOptions);
             if (isset($options['maxLength']) && $length > $options['maxLength']) {
                 return __d('carve', 'Carve content is too long.');
             }
@@ -125,14 +111,5 @@ final class CarveValidation
         );
 
         return [implode('; ', $lines), count($items) - self::LINT_FINDINGS_SHOWN];
-    }
-
-    private static function profile(string $name): Profile
-    {
-        if (!in_array($name, ['full', 'article', 'comment', 'minimal'], true)) {
-            throw new InvalidArgumentException('Unknown Carve profile: ' . $name);
-        }
-
-        return Profile::{$name}();
     }
 }

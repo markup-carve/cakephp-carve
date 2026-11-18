@@ -43,6 +43,14 @@ interface CarveRendererInterface
     public function toAnsi(string $source, array $options = []): string;
 
     /**
+     * Counts resolved text nodes for validation, including content from configured includes.
+     *
+     * @param string $source
+     * @param array<string, mixed> $options
+     */
+    public function textLength(string $source, array $options = []): int;
+
+    /**
      * Renders a file, includes expanded, as `html`, `text`, `markdown` or `ansi`.
      *
      * @param string $path

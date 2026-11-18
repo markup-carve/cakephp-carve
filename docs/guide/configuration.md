@@ -1,41 +1,5 @@
 # Configuration
 
-Set plugin defaults under `Carve` in `config/app_local.php` or `config/app.php`. A render call can override most values. The defaults below match `config/app.example.php` and `CarveRenderer`.
+Copy the keys you use from [`config/app.example.php`](https://github.com/markup-carve/cakephp-carve/blob/next2/config/app.example.php) into your CakePHP configuration. The plugin's 0.2 options are documented in [rendering and options](rendering-and-options.md). Use `rawHtml` and `urlPolicy` for trust, `profile` for permitted markup, `includeRoot` or `includeResolver` for includes, `extensions` for Carve2 definitions, and `writers` for custom output targets.
 
-## Set a default
-
-```php
-'Carve' => [
-    'safeMode' => true,
-    'profile' => 'comment',
-],
-```
-
-## Find a key
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `rendererClass` | `CarveRenderer::class` | Renderer used by the helper and view; implement `CarveRendererInterface`. |
-| `safeMode` | `true` | Engine safe rendering policy. |
-| `rawHtml` | `null` | Raw HTML handling under normal safe mode. |
-| `xhtml` | `false` | XHTML style empty tags. |
-| `strict` | `false` | Throw on parse errors. |
-| `warnings` | `false` | Collect parse warnings. |
-| `profile` | `null` | Allowed markup profile. |
-| `onDisallowed` | `strip` | Action for markup outside the profile. |
-| `mode` | `interactive` | Interactive or static rendering. |
-| `softBreakMode` | `null` | Rendering of soft line breaks. |
-| `smartTypography` | `null` | Typography substitutions. |
-| `symbols` | `[]` | Named symbol replacements. |
-| `sourceLines` | `false` | Source line data in HTML. |
-| `labels` | `[]` | Engine generated UI text. |
-| `roundTripMode` | `false` | Carriers for round trip output. |
-| `renderers` | `[]` | Build time extension renderers. |
-| `includeRoot` | `null` | Filesystem include boundary. |
-| `includeResolver` | `null` | Custom include source. |
-| `extensions` | `[]` | Extra markup features. |
-| `presets` | `default`, `comment`, `trusted` | Named option maps. |
-| `cache` | `false` | CakePHP render cache settings. |
-| `debug` | `null` | Helper timing comment; `null` follows app debug. |
-
-See [rendering and options](rendering-and-options.md) for values and examples, [safe mode](safe-mode.md) for visitor content, [extensions](extensions.md) for extension names, and [caching](caching.md) for cache settings. JSON frontmatter metadata works by default; YAML needs `symfony/yaml` or PHP's `yaml` extension.
+The 0.1 keys `safeMode`, `xhtml`, `strict`, `warnings`, `onDisallowed`, `softBreakMode`, `roundTripMode`, and `renderers` have no direct 0.2 mapping. Remove them when moving to this branch. The plugin rejects unknown options so old security configuration cannot be mistaken for an active policy. A custom renderer implementing `CarveRendererInterface` also implements `textLength()` so validation measures included content.
