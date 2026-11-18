@@ -149,6 +149,14 @@ class CarveRenderer implements CarveRendererInterface
         return $this->writeTarget('ansi', $source, $this->options($options));
     }
 
+    public function textLength(string $source, array $options = []): int
+    {
+        $effective = $this->options($options);
+        $tree = Carve2::parse($source, $this->engineOptions($effective, 'parse'));
+
+        return mb_strlen(trim(self::plainText($tree)));
+    }
+
     public function renderFileAs(string $path, string $format, array $options = []): string
     {
         if ($format === 'html') {

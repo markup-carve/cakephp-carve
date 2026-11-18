@@ -14,7 +14,7 @@ $validator->setProvider('carve', \MarkupCarve\CakeCarve\Validation\CarveValidati
     ]);
 ```
 
-For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 'comment', 'maxLength' => 5])` returns `Carve content is too long.` Length is measured from the Carve2 text nodes. Empty values pass this rule; add CakePHP presence and nonempty rules when content is required.
+For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 'comment', 'maxLength' => 5])` returns `Carve content is too long.` Length is measured from resolved Carve2 text nodes, including content from a configured include resolver. Empty values pass this rule; add CakePHP presence and nonempty rules when content is required.
 
 ## Choose rule options
 

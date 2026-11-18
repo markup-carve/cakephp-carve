@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\CakeCarve\Test\V2;
 
+use Cake\Core\Configure;
 use Cake\View\View;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Validation\CarveValidation;
@@ -211,6 +212,18 @@ class Carve2PortTest extends TestCase
     {
         self::assertTrue(CarveValidation::valid('*Hi*', ['maxLength' => 2]));
         self::assertSame('Carve content is too long.', CarveValidation::valid('*Hello*', ['maxLength' => 2]));
+    }
+
+    public function testValidationCountsResolvedIncludeText(): void
+    {
+        $resolver = static fn (array $request): array => ['text' => "Included content.\n", 'id' => 'child.crv'];
+        Configure::write('Carve.includeResolver', $resolver);
+        try {
+            self::assertSame('Carve content is too long.', CarveValidation::valid('{{ child.crv }}', ['maxLength' => 5]));
+            self::assertTrue(CarveValidation::valid('{{ child.crv }}', ['minLength' => 5]));
+        } finally {
+            Configure::delete('Carve.includeResolver');
+        }
     }
 
     public function testMarkdownWriterPending(): void

@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace MarkupCarve\CakeCarve\Validation;
 
 use InvalidArgumentException;
-use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Carve\RendererFactory;
-use MarkupCarve\Carve2\Carve2;
 use Throwable;
 use function Cake\I18n\__d;
 
@@ -82,7 +80,7 @@ final class CarveValidation
                         : __d('carve', 'Carve content has lint findings: {0}.', $shown);
                 }
             }
-            $length = mb_strlen(trim(CarveRenderer::plainText(Carve2::parse($check))));
+            $length = $renderer->textLength($check, $renderOptions);
             if (isset($options['maxLength']) && $length > $options['maxLength']) {
                 return __d('carve', 'Carve content is too long.');
             }
