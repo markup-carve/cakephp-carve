@@ -118,7 +118,15 @@ class CarveRenderer implements CarveRendererInterface
             ], $dependencies);
             $states['resolver'] = $resolver->includeCacheKey($legacyDependencies);
         }
-        $key = (isset($parseOptions['includes']) && $states === []) ? null
+        $unresolved = false;
+        foreach ($dependencies as $dependency) {
+            if ($dependency['resolved'] !== true) {
+                $unresolved = true;
+
+                break;
+            }
+        }
+        $key = ($unresolved || (isset($parseOptions['includes']) && $states === [])) ? null
             : $this->cacheKey('file', serialize([$source, $real, $states]), $effective);
         if ($key !== null) {
             $cached = Cache::read($key, $this->cacheConfig($effective));

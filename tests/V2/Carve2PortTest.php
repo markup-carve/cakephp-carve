@@ -99,6 +99,29 @@ class Carve2PortTest extends TestCase
         }
     }
 
+    public function testMissingIncludeCreatedAfterCachedRender(): void
+    {
+        $root = sys_get_temp_dir() . '/cake-carve2-missing-' . bin2hex(random_bytes(5));
+        mkdir($root);
+        file_put_contents($root . '/main.crv', "{{ one.crv }}\n\n{{ two.crv }}\n");
+        file_put_contents($root . '/one.crv', "One.\n");
+        try {
+            $renderer = new CarveRenderer(['includeRoot' => $root, 'cache' => ['config' => 'default']]);
+            $first = $renderer->renderFile($root . '/main.crv')->html();
+            self::assertStringContainsString('One.', $first);
+            self::assertStringNotContainsString('Two.', $first);
+            file_put_contents($root . '/two.crv', "Two.\n");
+            self::assertStringContainsString('Two.', $renderer->renderFile($root . '/main.crv')->html());
+        } finally {
+            unlink($root . '/main.crv');
+            unlink($root . '/one.crv');
+            if (is_file($root . '/two.crv')) {
+                unlink($root . '/two.crv');
+            }
+            rmdir($root);
+        }
+    }
+
     public function testFormatAndLint(): void
     {
         $renderer = new CarveRenderer();
