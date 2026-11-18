@@ -85,9 +85,12 @@ class Carve2PortTest extends TestCase
         file_put_contents($root . '/main.crv', "{{ part.crv }}\n");
         file_put_contents($root . '/part.crv', "Included *text*.\n");
         try {
-            $result = (new CarveRenderer(['includeRoot' => $root]))->renderFile($root . '/main.crv');
+            $renderer = new CarveRenderer(['includeRoot' => $root, 'cache' => ['config' => 'default']]);
+            $result = $renderer->renderFile($root . '/main.crv');
             self::assertSame('<p>Included <strong>text</strong>.</p>', $result->html());
             self::assertSame([['path' => 'part.crv', 'resolved' => true, 'id' => 'part.crv']], $result->dependencies());
+            file_put_contents($root . '/part.crv', "Changed.\n");
+            self::assertSame('<p>Changed.</p>', $renderer->renderFile($root . '/main.crv')->html());
         } finally {
             unlink($root . '/main.crv');
             unlink($root . '/part.crv');
@@ -130,6 +133,22 @@ class Carve2PortTest extends TestCase
         self::assertSame("Hi /there/\n", $result->value);
         self::assertSame([], $result->losses());
         self::assertNotEmpty((new CarveRenderer())->import('<script>x</script>', 'html')->losses());
+    }
+
+    public function testLegacyImportsReturnFormattedSourceAndReviewDiagnostic(): void
+    {
+        $renderer = new CarveRenderer();
+        foreach (
+            [
+                'markdown' => '**bold**',
+                'djot' => '*bold*',
+                'bbcode' => '[b]bold[/b]',
+            ] as $from => $source
+        ) {
+            $result = $renderer->import($source, $from);
+            self::assertSame("*bold*\n", $result->value);
+            self::assertContains('legacy-import-review', array_map(static fn ($item): string => $item->code, $result->losses()));
+        }
     }
 
     public function testWriterRegistryCanSupplyText(): void
@@ -212,5 +231,20 @@ class Carve2PortTest extends TestCase
     public function testLegacyExtensionPending(): void
     {
         $this->markTestSkipped('Carve 0.2 heading_permalinks extension has no 0.2 definition yet.');
+    }
+
+    public function testInlineExtensionRendererPending(): void
+    {
+        $this->markTestSkipped('Carve2 inline extension renderer is pending in carve-php issue 5232.');
+    }
+
+    public function testStaticExtensionRendererPending(): void
+    {
+        $this->markTestSkipped('Carve2 static extension render channel is pending in carve issue 6070.');
+    }
+
+    public function testDocumentTransformPending(): void
+    {
+        $this->markTestSkipped('Carve2 document transform hook is pending in carve issue 6070.');
     }
 }

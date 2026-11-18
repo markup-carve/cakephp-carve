@@ -63,7 +63,7 @@ $findings = $renderer->lint("{#a}\nx\n\n{#a}\ny\n");
 $imported = $renderer->import('<p>Hi <em>there</em></p>', 'html');
 ```
 
-`format()` uses the 0.2 canonical source writer. `lint()` exposes the 0.2 diagnostic code as `rule`, with message, line, and column. HTML import returns canonical 0.2 source and diagnostics. The older Markdown, Djot, and BBCode imports remain named in the command but report that their 0.2 importer is unavailable.
+`format()` uses the 0.2 canonical source writer. `lint()` exposes the 0.2 diagnostic code as `rule`, with message, line, and column. HTML import returns canonical 0.2 source and diagnostics. Markdown, Djot, and BBCode use their retained 0.1 importers, then pass the source through the 0.2 formatter. They return a `legacy-import-review` loss because 0.1 source spellings can change meaning in 0.2. `--check-loss` refuses these imports. Run without that flag, then review the output with the 0.2 upgrade tool before publication.
 
 ## Output writers
 

@@ -7,11 +7,15 @@ namespace MarkupCarve\CakeCarve\Carve;
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use InvalidArgumentException;
+use MarkupCarve\Carve\Converter\BbcodeToCarve;
+use MarkupCarve\Carve\Converter\DjotToCarve;
+use MarkupCarve\Carve\Converter\MarkdownToCarve;
 use MarkupCarve\Carve2\Carve2;
 use MarkupCarve\Carve2\Diagnostics\Diagnostic;
 use MarkupCarve\Carve2\Extension\ExtensionDefinition;
 use MarkupCarve\Carve2\Extension\ExtensionProvider;
 use MarkupCarve\Carve2\Extension\Tabs;
+use MarkupCarve\Carve2\Import\ImportResult as EngineImportResult;
 use MarkupCarve\Carve2\Include\FileResolver;
 use MarkupCarve\Carve2\Include\IncludeResolver;
 use MarkupCarve\Carve2\Node;
@@ -187,9 +191,12 @@ class CarveRenderer implements CarveRendererInterface
             $unique[$key] = $finding;
         }
 
-        return array_map(static function (Diagnostic $d) use ($source, $real): array {
+        $root = is_string($effective['includeRoot'] ?? null) ? realpath($effective['includeRoot']) : false;
+
+        return array_map(static function (Diagnostic $d) use ($source, $real, $root): array {
             $file = $d->file ?? $real;
-            $text = $file === $real ? $source : (is_file($file) ? (string)file_get_contents($file) : '');
+            $onDisk = $root !== false && !str_starts_with($file, '/') ? $root . '/' . $file : $file;
+            $text = $file === $real ? $source : (is_file($onDisk) ? (string)file_get_contents($onDisk) : '');
 
             return self::finding($d, $text) + ['file' => $file];
         }, array_values($unique));
@@ -197,13 +204,48 @@ class CarveRenderer implements CarveRendererInterface
 
     public function import(string $source, string $from): ImportResult
     {
-        if ($from !== 'html') {
-            throw new RuntimeException('Carve 0.2 importer for ' . $from . ' is not available yet.');
-        }
-        $effective = $this->options([]);
-        $result = Carve2::importDocument($source, ['from' => 'html', 'rawHtml' => $effective['rawHtml']]);
+        if ($from === 'html') {
+            $effective = $this->options([]);
+            $result = Carve2::importDocument($source, ['from' => 'html', 'rawHtml' => $effective['rawHtml']]);
 
-        return new ImportResult($result->source, 'html', $result->diagnostics, $result);
+            return new ImportResult($result->source, 'html', $result->diagnostics, $result);
+        }
+        $converter = match ($from) {
+            'markdown' => new MarkdownToCarve(),
+            'djot' => new DjotToCarve(),
+            'bbcode' => new BbcodeToCarve(),
+            default => throw new InvalidArgumentException('Unknown Carve import format: ' . $from),
+        };
+        $legacy = $converter->convertWithFidelityReport($source);
+        $value = Carve2::format($legacy->value);
+        $diagnostics = array_map(static fn ($item): Diagnostic => new Diagnostic(
+            $item->code,
+            $item->severity,
+            in_array($item->fidelity, ['degraded', 'dropped'], true) ? 'render-loss' : 'parse',
+            $item->message,
+            $item->path,
+        ), $legacy->diagnostics);
+        $diagnostics[] = new Diagnostic(
+            'legacy-import-review',
+            'warning',
+            'render-loss',
+            'Review this 0.1 import with the 0.2 upgrade tool before publication.',
+        );
+        $tree = Carve2::parse($value);
+        $decoded = json_decode(Carve2::encodeTree($tree), true, flags: JSON_THROW_ON_ERROR);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Unable to encode the imported Carve tree.');
+        }
+        $document = [];
+        foreach ($decoded as $key => $item) {
+            if (!is_string($key)) {
+                throw new RuntimeException('Unable to encode the imported Carve tree.');
+            }
+            $document[$key] = $item;
+        }
+        $result = new EngineImportResult($tree, $document, $diagnostics, $value);
+
+        return new ImportResult($value, $from, $diagnostics, $result);
     }
 
     public function resolveOptions(array $options = []): array

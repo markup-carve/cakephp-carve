@@ -29,6 +29,6 @@ $findings = $carve->lint("{#a}\nx\n\n{#a}\ny\n");
 $imported = $carve->import('<p>Hello</p>', 'html');
 ```
 
-`CarveView`, the view helper, validation rule, ORM behavior, and the `carve render`, `format`, `lint`, and `convert` commands use the same renderer. HTML is escaped by default, and unsafe URL schemes are denied. File rendering accepts `includeRoot` or a Carve2 include resolver.
+`CarveView`, the view helper, validation rule, ORM behavior, and the `carve render`, `format`, `lint`, and `convert` commands use the same renderer. HTML is escaped by default, and unsafe URL schemes are denied. HTML import uses Carve2; Markdown, Djot, and BBCode imports retain the 0.1 importer as a reviewed compatibility bridge. File rendering accepts `includeRoot` or a Carve2 include resolver.
 
 Text, Markdown, and ANSI output methods remain in the plugin. They use the Carve2 writer registry and report a clear error until a writer is registered. Several 0.1 extensions also lack a 0.2 definition. See [rendering and options](docs/guide/rendering-and-options.md), [extensions](docs/guide/extensions.md), [commands](docs/guide/commands.md), and [configuration](config/app.example.php) for details.

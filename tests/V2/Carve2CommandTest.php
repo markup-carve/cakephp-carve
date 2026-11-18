@@ -52,6 +52,15 @@ class Carve2CommandTest extends TestCase
         $this->exec('carve convert --from html ' . $html);
         $this->assertExitCode(0);
         $this->assertOutputContains('Hi /there/');
+
+        $markdown = $this->root . '/input.md';
+        file_put_contents($markdown, '**bold**');
+        $this->exec('carve convert --from markdown ' . $markdown);
+        $this->assertExitCode(0);
+        $this->assertOutputContains('*bold*');
+        $this->exec('carve convert --from markdown --check-loss ' . $markdown);
+        $this->assertExitCode(1);
+        $this->assertErrorContains('Review this 0.1 import');
     }
 
     public function testUnregisteredWriterAndImportLoss(): void

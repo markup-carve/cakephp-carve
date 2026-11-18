@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 - Port the CakePHP plugin to the pinned Carve2 engine on `next2`.
-- Use Carve2 rendering, includes, formatting, linting, diagnostics, and HTML import.
+- Use Carve2 rendering, includes, formatting, linting, diagnostics, and HTML import. Retain the 0.1 Markdown, Djot, and BBCode importers with a review warning for their 0.2 output.
 - Route text, Markdown, and ANSI output through the writer registry with clear errors until writers are registered.
 - Replace safe mode settings with `rawHtml` and URL policy, and accept 0.2 extension definitions.
 
