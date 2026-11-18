@@ -453,10 +453,8 @@ class CarveRenderer implements CarveRendererInterface
         }
         $keyOptions = $options;
         unset($keyOptions['cache'], $keyOptions['presets']);
-        foreach ($keyOptions as $value) {
-            if (is_object($value)) {
-                return null;
-            }
+        if (self::containsObject($keyOptions)) {
+            return null;
         }
         $prefix = $cache['prefix'] ?? 'carve_';
         if (!is_string($prefix)) {
@@ -464,6 +462,22 @@ class CarveRenderer implements CarveRendererInterface
         }
 
         return $prefix . hash('sha256', serialize([Carve2::class, $kind, $source, $cache['version'] ?? null, $keyOptions]));
+    }
+
+    private static function containsObject(mixed $value): bool
+    {
+        if (is_object($value)) {
+            return true;
+        }
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if (self::containsObject($item)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

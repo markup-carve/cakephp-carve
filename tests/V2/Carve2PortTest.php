@@ -68,6 +68,16 @@ class Carve2PortTest extends TestCase
         self::assertSame('<aside>Example</aside>', $renderer->toHtml("```example\nbody\n```\n"));
     }
 
+    public function testVersionedCacheSkipsStatefulExtension(): void
+    {
+        $extension = new ExtensionDefinition('cake.cache-test', '1');
+        $renderer = new CarveRenderer([
+            'extensions' => [$extension],
+            'cache' => ['version' => 'v1'],
+        ]);
+        self::assertSame('<p>Hello</p>', $renderer->toHtml('Hello'));
+    }
+
     public function testFileIncludesAndIdentity(): void
     {
         $root = sys_get_temp_dir() . '/cake-carve2-' . bin2hex(random_bytes(5));
