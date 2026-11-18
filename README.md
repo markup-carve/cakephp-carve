@@ -1,70 +1,34 @@
-# CakePHP Carve
+# CakePHP Carve 0.2
 
-[![CI](https://github.com/markup-carve/cakephp-carve/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/markup-carve/cakephp-carve/actions/workflows/ci.yml?query=branch%3Amain)
-[![Coverage](https://img.shields.io/codecov/c/github/markup-carve/cakephp-carve/main.svg)](https://app.codecov.io/github/markup-carve/cakephp-carve/tree/main)
-[![PHPStan level](https://img.shields.io/badge/PHPStan-level%209-brightgreen.svg)](https://phpstan.org/)
-[![Latest Stable Version](https://poser.pugx.org/markup-carve/cakephp-carve/v/stable.svg)](https://packagist.org/packages/markup-carve/cakephp-carve)
-[![Minimum PHP Version](https://img.shields.io/badge/php-%3E%3D%208.2-8892BF.svg)](https://php.net/)
-[![License](https://poser.pugx.org/markup-carve/cakephp-carve/license.svg)](LICENSE)
-[![Total Downloads](https://poser.pugx.org/markup-carve/cakephp-carve/d/total.svg)](https://packagist.org/packages/markup-carve/cakephp-carve)
+This `next2` branch ports the CakePHP plugin to the unreleased Carve2 PHP engine. It pins the engine's `next2` commit through Composer's VCS support. The branch is for integration testing and is not a package release.
 
-CakePHP wrapper for [Carve](https://github.com/markup-carve/carve-php) rendering, templates, validation, persistence, and commands.
-
-**[View the live demo →](https://sandbox.dereuromark.de/sandbox/cake-carve-examples)**: presets and safe mode, validation, the ORM behavior and `.crv` views in a running CakePHP app.
-
-See [composer.json](composer.json) for supported versions and the [version map](https://github.com/markup-carve/cakephp-carve/wiki#cakephp-version-map) for which plugin line matches which CakePHP and carve-php release.
-
-## Install
+## Install for development
 
 ```sh
-composer require markup-carve/cakephp-carve
+composer update
 ```
 
-Load the plugin in your application:
+Enable the plugin and helper in your CakePHP application:
 
 ```php
 $this->addPlugin('MarkupCarve/CakeCarve');
-```
-
-Load the helper in `AppView::initialize()`:
-
-```php
 $this->addHelper('MarkupCarve/CakeCarve.Carve');
 ```
 
-## Use
+## Render
 
 ```php
-$carve = new \MarkupCarve\CakeCarve\Carve\CarveRenderer();
+use MarkupCarve\CakeCarve\Carve\CarveRenderer;
+
+$carve = new CarveRenderer();
 $html = $carve->toHtml('# Hello');
 $result = $carve->render('# Hello', ['preset' => 'comment']);
-$toc = $result->toc();
-$text = $carve->toText('Hello');
-$markdown = $carve->toMarkdown('Hello');
-$ansi = $carve->toAnsi('Hello');
-$file = $carve->renderFile('/path/to/article.crv');
-$formatted = $carve->format('Hello');
-$findings = $carve->lint('Hello');
-$imported = $carve->import('**Hello**', 'markdown');
+$headings = $result->toc();
+$formatted = $carve->format("a  \nb\n");
+$findings = $carve->lint("{#a}\nx\n\n{#a}\ny\n");
+$imported = $carve->import('<p>Hello</p>', 'html');
 ```
 
-In a template, call the helper's `convert`, `render`, `text`, `markdown`, `toc`, `file`, `lint`, or `format` methods. For `.crv` templates, use `CarveView::class` as the controller view class. The view supplies `$carve['meta']` and `$carve['toc']` to layouts.
+`CarveView`, the view helper, validation rule, ORM behavior, and the `carve render`, `format`, `lint`, and `convert` commands use the same renderer. HTML is escaped by default, and unsafe URL schemes are denied. File rendering accepts `includeRoot` or a Carve2 include resolver.
 
-Add `CarveValidation::class` as a validator provider:
-
-```php
-$validator->setProvider('carve', \MarkupCarve\CakeCarve\Validation\CarveValidation::class)
-    ->add('body', 'carve', ['rule' => ['valid', ['preset' => 'comment']], 'provider' => 'carve']);
-```
-
-Attach `CarveBehavior` to render source fields when an entity is saved:
-
-```php
-$this->addBehavior('MarkupCarve/CakeCarve.Carve', [
-    'fields' => ['body' => ['target' => 'body_html', 'text' => 'body_text']],
-]);
-```
-
-Run `bin/cake carve render`, `carve convert`, `carve format`, or `carve lint` for file operations.
-
-See [the documentation](https://markup-carve.github.io/cakephp-carve/) and [configuration example](config/app.example.php).
+Text, Markdown, and ANSI output methods remain in the plugin. They use the Carve2 writer registry and report a clear error until a writer is registered. Several 0.1 extensions also lack a 0.2 definition. See [rendering and options](docs/guide/rendering-and-options.md), [extensions](docs/guide/extensions.md), [commands](docs/guide/commands.md), and [configuration](config/app.example.php) for details.

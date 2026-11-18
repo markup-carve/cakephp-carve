@@ -34,7 +34,7 @@ class ConvertCommand extends Command
             if ($args->getOption('check-loss')) {
                 $lossy = false;
                 foreach ($result->diagnostics as $diagnostic) {
-                    if (in_array($diagnostic->fidelity, ['degraded', 'dropped'], true)) {
+                    if (in_array($diagnostic->channel, ['import-loss', 'render-loss'], true)) {
                         $io->err($diagnostic->message);
                         $lossy = true;
                     }

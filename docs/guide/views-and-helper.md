@@ -22,11 +22,13 @@ The helper trims output. With `debug` enabled, `convert()` appends a timing HTML
 | --- | --- | --- |
 | `render` | `$this->Carve->render('# Hello')` | `RenderedCarve` with HTML, TOC, and metadata. |
 | `file` | `$this->Carve->file(ROOT . '/content/page.crv')` | HTML from a file. |
-| `text` | `$this->Carve->text('Hello, *CakePHP*.')` | Plain text. |
-| `markdown` | `$this->Carve->markdown('Hello, *CakePHP*.')` | Markdown text. |
+| `text` | `$this->Carve->text('Hello, *CakePHP*.')` | Plain text through a registered 0.2 writer. |
+| `markdown` | `$this->Carve->markdown('Hello, *CakePHP*.')` | Markdown through a registered 0.2 writer. |
 | `toc` | `$this->Carve->toc('# Hello')` | Heading records. |
 | `lint` | `$this->Carve->lint('Hello')` | Lint findings. |
 | `format` | `$this->Carve->format("Hello\n")` | Formatted Carve source. |
+
+Text and Markdown writer calls report an availability error until the engine or application registers those targets.
 
 ## Use a `.crv` template
 
@@ -42,7 +44,7 @@ $this->set('name', 'Ada');
 Create `templates/Pages/welcome.crv`:
 
 ```carve
-# Hello
+= Hello
 
 Welcome, {{name}}.
 ```
@@ -63,7 +65,7 @@ The view replaces the placeholder before rendering. With `name` set to `Ada`, th
 Create a `.crv` layout, such as `templates/layout/default.crv`:
 
 ```carve
-# {{carve.meta.title}}
+= {{carve.meta.title}}
 
 {{content}}
 ```

@@ -14,7 +14,7 @@ $validator->setProvider('carve', \MarkupCarve\CakeCarve\Validation\CarveValidati
     ]);
 ```
 
-For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 'comment', 'maxLength' => 5])` returns `Carve content is too long.` Length is measured in rendered plain text. Empty values pass this rule; add CakePHP presence and nonempty rules when content is required.
+For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 'comment', 'maxLength' => 5])` returns `Carve content is too long.` Length is measured from the Carve2 text nodes. Empty values pass this rule; add CakePHP presence and nonempty rules when content is required.
 
 ## Choose rule options
 
@@ -22,7 +22,6 @@ For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 
 | --- | --- | --- |
 | `preset` | `default` | Uses a configured render preset. |
 | `profile` | From preset or config | Limits markup; `comment` suits visitor text. |
-| `onDisallowed` | `strip` | Selects `strip`, `to_text`, or `error` for disallowed markup. |
 | `strict` | `false` | Rejects parse warnings. |
 | `lint` | `false` | Rejects lint findings. |
 | `lintRules` | All rules | Limits lint checks to listed rule IDs. |
@@ -30,4 +29,4 @@ For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 
 | `minLength` | None | Requires a minimum plain text length. |
 | `maxLength` | None | Sets a maximum plain text length. |
 
-Profile violations return `Carve content contains markup disallowed by its profile.` Lint and parse messages show up to three findings with line, column, rule, and message. The engine's lint findings have no severity field. See [safe mode](safe-mode.md) for render settings to pair with validation.
+Profile violations return `Carve content contains markup disallowed by its profile.` Lint and parse messages show up to three findings with line, column, rule, and message. The plugin maps Carve2 diagnostic codes to rule names and byte offsets to line and column. See [safe mode](safe-mode.md) for render settings to pair with validation.

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Port the CakePHP plugin to the pinned Carve2 engine on `next2`.
+- Use Carve2 rendering, includes, formatting, linting, diagnostics, and HTML import.
+- Route text, Markdown, and ANSI output through the writer registry with clear errors until writers are registered.
+- Replace safe mode settings with `rawHtml` and URL policy, and accept 0.2 extension definitions.
+
 ## [0.1.4] - 2026-11-12
 
 Rendering, conversion, linting and formatting now follow the published carve-php 0.1.17 engine.
