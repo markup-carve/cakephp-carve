@@ -1,6 +1,6 @@
 # Rendering and options in Carve 0.2
 
-The plugin uses the `MarkupCarve\Carve2\Carve2` engine. The Composer dependency is pinned to its `next2` commit until an engine release is available.
+The plugin uses the `MarkupCarve\Carve\Carve` engine. The Composer dependency is pinned to its `next2` commit until an engine release is available.
 
 ```php
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
@@ -37,9 +37,9 @@ The merge order is defaults, application `Carve` config, selected preset, then o
 | `roundtrip` | Boolean | `false` | Emit roundtrip carriers. |
 | `symbols`, `labels` | Name to string map | Empty | Override symbols and UI labels. |
 | `includeRoot` | Path or `null` | `null` | Confine file includes to an absolute root. |
-| `includeResolver` | Carve2 resolver or callable | `null` | Supply custom include content. |
-| `extensions` | Carve2 definitions or providers | Empty | Register 0.2 extensions. |
-| `writers` | Carve2 output writer instances | Empty | Register output targets. |
+| `includeResolver` | Carve resolver or callable | `null` | Supply custom include content. |
+| `extensions` | Carve definitions or providers | Empty | Register 0.2 extensions. |
+| `writers` | Carve output writer instances | Empty | Register output targets. |
 | `cache` | `false` or Cake cache config map | `false` | Cache rendered results. |
 | `presets`, `preset` | Named option maps, name | `default` | Reuse option sets. |
 
@@ -53,7 +53,7 @@ $result = $renderer->renderFile(ROOT . '/content/article.crv', [
 ]);
 ```
 
-`includeRoot` must contain the entry file. A custom `includeResolver` takes precedence and implements Carve2's `IncludeResolver::resolve(array $request): array` or is a callable with the same signature. The result exposes each include path, resolved state, and dependency identity. `lintFile()` uses the same resolver configuration.
+`includeRoot` must contain the entry file. A custom `includeResolver` takes precedence and implements Carve's `IncludeResolver::resolve(array $request): array` or is a callable with the same signature. The result exposes each include path, resolved state, and dependency identity. `lintFile()` uses the same resolver configuration.
 
 ## Formatting, linting, and import
 
@@ -63,15 +63,15 @@ $findings = $renderer->lint("{#a}\nx\n\n{#a}\ny\n");
 $imported = $renderer->import('<p>Hi <em>there</em></p>', 'html');
 ```
 
-`format()` uses the 0.2 canonical source writer. `lint()` exposes the 0.2 diagnostic code as `rule`, with message, line, and column. HTML import returns canonical 0.2 source and diagnostics. Markdown, Djot, and BBCode use their retained 0.1 importers, then pass the source through the 0.2 formatter. They return a `legacy-import-review` loss because 0.1 source spellings can change meaning in 0.2. `--check-loss` refuses these imports. Run without that flag, then review the output with the 0.2 upgrade tool before publication.
+`format()` uses the 0.2 canonical source writer. `lint()` exposes the 0.2 diagnostic code as `rule`, with message, line, and column. HTML import returns canonical 0.2 source and diagnostics. Markdown, Djot, and BBCode imports are unavailable; use the 0.2 upgrade tool before importing old documents.
 
 ## Output writers
 
-The `toText()`, `toMarkdown()`, `toAnsi()`, helper, behavior, and CLI methods remain available. They select a writer from `Carve2::writers()` plus any instances in `writers`. The engine does not yet register these three writers, so an unregistered target raises `Carve 0.2 <target> writer not available yet`.
+The `toText()`, `toMarkdown()`, `toAnsi()`, helper, behavior, and CLI methods remain available. They select a writer from `Carve::writers()` plus any instances in `writers`. The engine does not yet register these three writers, so an unregistered target raises `Carve 0.2 <target> writer not available yet`.
 
 ```php
 $renderer = new CarveRenderer(['writers' => [$yourTextWriter]]);
 echo $renderer->toText('Hello');
 ```
 
-A writer implements `MarkupCarve\Carve2\Output\OutputWriter`. Registration is per renderer call, so one application's writer cannot change another application's registry.
+A writer implements `MarkupCarve\Carve\Output\OutputWriter`. Registration is per renderer call, so one application's writer cannot change another application's registry.

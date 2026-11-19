@@ -17,9 +17,9 @@ return [
         'symbols' => [],
         'labels' => [],
         'includeRoot' => null, // Absolute root for renderFile() and lintFile().
-        'includeResolver' => null, // Carve2 IncludeResolver or callable.
-        'extensions' => [], // Carve2 ExtensionDefinition or ExtensionProvider.
-        'writers' => [], // Carve2 OutputWriter instances for text, markdown and ansi.
+        'includeResolver' => null, // Carve IncludeResolver or callable.
+        'extensions' => [], // Carve ExtensionDefinition or ExtensionProvider.
+        'writers' => [], // Carve OutputWriter instances for text, markdown and ansi.
         'presets' => [
             'default' => [],
             'comment' => ['profile' => 'comment'],

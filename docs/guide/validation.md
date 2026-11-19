@@ -14,7 +14,7 @@ $validator->setProvider('carve', \MarkupCarve\CakeCarve\Validation\CarveValidati
     ]);
 ```
 
-For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 'comment', 'maxLength' => 5])` returns `Carve content is too long.` Length is measured from resolved Carve2 text nodes, including content from a configured include resolver. Empty values pass this rule; add CakePHP presence and nonempty rules when content is required.
+For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 'comment', 'maxLength' => 5])` returns `Carve content is too long.` Length is measured from resolved Carve text nodes, including content from a configured include resolver. Empty values pass this rule; add CakePHP presence and nonempty rules when content is required.
 
 ## Choose rule options
 
@@ -29,4 +29,4 @@ For a five-character limit, `CarveValidation::valid('Hello world', ['preset' => 
 | `minLength` | None | Requires a minimum plain text length. |
 | `maxLength` | None | Sets a maximum plain text length. |
 
-Profile violations return `Carve content contains markup disallowed by its profile.` Lint and parse messages show up to three findings with line, column, rule, and message. The plugin maps Carve2 diagnostic codes to rule names and byte offsets to line and column. See [safe mode](safe-mode.md) for render settings to pair with validation.
+Profile violations return `Carve content contains markup disallowed by its profile.` Lint and parse messages show up to three findings with line, column, rule, and message. The plugin maps Carve diagnostic codes to rule names and byte offsets to line and column. See [safe mode](safe-mode.md) for render settings to pair with validation.

@@ -7,19 +7,15 @@ namespace MarkupCarve\CakeCarve\Carve;
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use InvalidArgumentException;
-use MarkupCarve\Carve\Converter\BbcodeToCarve;
-use MarkupCarve\Carve\Converter\DjotToCarve;
-use MarkupCarve\Carve\Converter\MarkdownToCarve;
-use MarkupCarve\Carve2\Carve2;
-use MarkupCarve\Carve2\Diagnostics\Diagnostic;
-use MarkupCarve\Carve2\Extension\ExtensionDefinition;
-use MarkupCarve\Carve2\Extension\ExtensionProvider;
-use MarkupCarve\Carve2\Extension\Tabs;
-use MarkupCarve\Carve2\Import\ImportResult as EngineImportResult;
-use MarkupCarve\Carve2\Include\FileResolver;
-use MarkupCarve\Carve2\Include\IncludeResolver;
-use MarkupCarve\Carve2\Node;
-use MarkupCarve\Carve2\Output\OutputWriter;
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Carve\Diagnostics\Diagnostic;
+use MarkupCarve\Carve\Extension\ExtensionDefinition;
+use MarkupCarve\Carve\Extension\ExtensionProvider;
+use MarkupCarve\Carve\Extension\Tabs;
+use MarkupCarve\Carve\Include\FileResolver;
+use MarkupCarve\Carve\Include\IncludeResolver;
+use MarkupCarve\Carve\Node;
+use MarkupCarve\Carve\Output\OutputWriter;
 use RuntimeException;
 
 class CarveRenderer implements CarveRendererInterface
@@ -98,12 +94,12 @@ class CarveRenderer implements CarveRendererInterface
         [$source, $real] = self::readFile($path);
         $effective = $this->options($options);
         $parseOptions = $this->engineOptions($effective, 'parse', $real);
-        $tree = Carve2::parse($source, $parseOptions);
+        $tree = Carve::parse($source, $parseOptions);
         $dependencies = $this->dependencies($tree, $parseOptions);
         $states = [];
         if (isset($effective['includeRoot']) && is_string($effective['includeRoot'])) {
             $root = realpath($effective['includeRoot']);
-            foreach (Carve2::includeDependencies($tree) as $dependency) {
+            foreach (Carve::includeDependencies($tree) as $dependency) {
                 if ($root !== false && $dependency['file'] !== null) {
                     $file = $root . '/' . ltrim($dependency['file'], '/');
                     $states[$file] = is_file($file) ? hash_file('sha256', $file) : null;
@@ -160,7 +156,7 @@ class CarveRenderer implements CarveRendererInterface
     public function textLength(string $source, array $options = []): int
     {
         $effective = $this->options($options);
-        $tree = Carve2::parse($source, $this->engineOptions($effective, 'parse'));
+        $tree = Carve::parse($source, $this->engineOptions($effective, 'parse'));
 
         return mb_strlen(trim(self::plainText($tree)));
     }
@@ -183,14 +179,14 @@ class CarveRenderer implements CarveRendererInterface
         $options = $this->engineOptions($this->options([]), 'parse');
         unset($options['includes']);
 
-        return Carve2::format($source, $options + ['alignTables' => $alignTables]);
+        return Carve::format($source, $options + ['alignTables' => $alignTables]);
     }
 
     public function lint(string $source): array
     {
         $options = $this->engineOptions($this->options([]), 'parse');
 
-        return array_map(static fn (Diagnostic $d): array => self::finding($d, $source), Carve2::lint($source, $options));
+        return array_map(static fn (Diagnostic $d): array => self::finding($d, $source), Carve::lint($source, $options));
     }
 
     public function lintFile(string $path, array $options = []): array
@@ -199,8 +195,8 @@ class CarveRenderer implements CarveRendererInterface
         $effective = $this->options($options);
         $engine = $this->engineOptions($effective, 'parse', $real);
         $findings = isset($engine['includes'])
-            ? array_merge(Carve2::lint($source), Carve2::lint($source, $engine))
-            : Carve2::lint($source, $engine);
+            ? array_merge(Carve::lint($source), Carve::lint($source, $engine))
+            : Carve::lint($source, $engine);
         $unique = [];
         foreach ($findings as $finding) {
             $key = serialize([$finding->code, $finding->file, $finding->startOffset, $finding->endOffset]);
@@ -222,46 +218,12 @@ class CarveRenderer implements CarveRendererInterface
     {
         if ($from === 'html') {
             $effective = $this->options([]);
-            $result = Carve2::importDocument($source, ['from' => 'html', 'rawHtml' => $effective['rawHtml']]);
+            $result = Carve::importDocument($source, ['from' => 'html', 'rawHtml' => $effective['rawHtml']]);
 
             return new ImportResult($result->source, 'html', $result->diagnostics, $result);
         }
-        $converter = match ($from) {
-            'markdown' => new MarkdownToCarve(),
-            'djot' => new DjotToCarve(),
-            'bbcode' => new BbcodeToCarve(),
-            default => throw new InvalidArgumentException('Unknown Carve import format: ' . $from),
-        };
-        $legacy = $converter->convertWithFidelityReport($source);
-        $value = Carve2::format($legacy->value);
-        $diagnostics = array_map(static fn ($item): Diagnostic => new Diagnostic(
-            $item->code,
-            $item->severity,
-            in_array($item->fidelity, ['degraded', 'dropped'], true) ? 'render-loss' : 'parse',
-            $item->message,
-            $item->path,
-        ), $legacy->diagnostics);
-        $diagnostics[] = new Diagnostic(
-            'legacy-import-review',
-            'warning',
-            'render-loss',
-            'Review this 0.1 import with the 0.2 upgrade tool before publication.',
-        );
-        $tree = Carve2::parse($value);
-        $decoded = json_decode(Carve2::encodeTree($tree), true, flags: JSON_THROW_ON_ERROR);
-        if (!is_array($decoded)) {
-            throw new RuntimeException('Unable to encode the imported Carve tree.');
-        }
-        $document = [];
-        foreach ($decoded as $key => $item) {
-            if (!is_string($key)) {
-                throw new RuntimeException('Unable to encode the imported Carve tree.');
-            }
-            $document[$key] = $item;
-        }
-        $result = new EngineImportResult($tree, $document, $diagnostics, $value);
 
-        return new ImportResult($value, $from, $diagnostics, $result);
+        throw new InvalidArgumentException('Unknown Carve import format: ' . $from);
     }
 
     public function resolveOptions(array $options = []): array
@@ -354,15 +316,15 @@ class CarveRenderer implements CarveRendererInterface
     /**
      * @param string $source
      * @param array<string, mixed> $effective
-     * @param \MarkupCarve\Carve2\Node|null $tree
+     * @param \MarkupCarve\Carve\Node|null $tree
      * @param string|null $file
      * @param array<array<string, mixed>> $dependencies
      */
     private function renderSource(string $source, array $effective, ?string $file = null, ?Node $tree = null, array $dependencies = []): RenderedCarve
     {
         $options = $this->engineOptions($effective, 'render', $file);
-        $rendered = Carve2::renderWithDiagnostics($source, $options);
-        $tree ??= Carve2::parse($source, $this->engineOptions($effective, 'parse', $file));
+        $rendered = Carve::renderWithDiagnostics($source, $options);
+        $tree ??= Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
         $frontmatter = null;
         $toc = [];
         foreach ($tree->children ?? [] as $node) {
@@ -390,7 +352,7 @@ class CarveRenderer implements CarveRendererInterface
      */
     private function writeTarget(string $target, string $source, array $effective, ?string $file = null): string
     {
-        $registry = Carve2::writers();
+        $registry = Carve::writers();
         if (!is_array($effective['writers'])) {
             throw new InvalidArgumentException('Invalid Carve writers.');
         }
@@ -403,13 +365,13 @@ class CarveRenderer implements CarveRendererInterface
         if (!$registry->has($target)) {
             throw new RuntimeException('Carve 0.2 ' . $target . ' writer not available yet.');
         }
-        $tree = Carve2::parse($source, $this->engineOptions($effective, 'parse', $file));
+        $tree = Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
 
-        return Carve2::writeTo($target, $tree, $this->engineOptions($effective, 'render', $file), $registry);
+        return Carve::writeTo($target, $tree, $this->engineOptions($effective, 'render', $file), $registry);
     }
 
     /**
-     * @param \MarkupCarve\Carve2\Node $tree
+     * @param \MarkupCarve\Carve\Node $tree
      * @param array<string, mixed> $options
      *
      * @return array<array<string, mixed>>
@@ -420,11 +382,11 @@ class CarveRenderer implements CarveRendererInterface
             'path' => $d['path'],
             'resolved' => $d['read'],
             'id' => $d['file'],
-        ], Carve2::includeDependencies($tree, $options));
+        ], Carve::includeDependencies($tree, $options));
     }
 
     /**
-     * @param \MarkupCarve\Carve2\Node $node
+     * @param \MarkupCarve\Carve\Node $node
      * @param array<array<string, mixed>> $toc
      */
     private static function headings(Node $node, array &$toc): void
@@ -519,7 +481,7 @@ class CarveRenderer implements CarveRendererInterface
             throw new InvalidArgumentException('Invalid Carve cache prefix.');
         }
 
-        return $prefix . hash('sha256', serialize([Carve2::class, $kind, $source, $cache['version'] ?? null, $keyOptions]));
+        return $prefix . hash('sha256', serialize([Carve::class, $kind, $source, $cache['version'] ?? null, $keyOptions]));
     }
 
     private static function containsObject(mixed $value): bool

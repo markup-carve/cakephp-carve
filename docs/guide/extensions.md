@@ -1,6 +1,6 @@
 # Extensions in Carve 0.2
 
-The 0.2 extension API takes `ExtensionDefinition` or `ExtensionProvider` instances in `extensions`. The `tabs` shorthand registers Carve2's standard tabs definitions. Frontmatter, table of contents placement, autolinks, admonitions, and mentions are core syntax and their old names are accepted as harmless compatibility aliases.
+The 0.2 extension API takes `ExtensionDefinition` or `ExtensionProvider` instances in `extensions`. The `tabs` shorthand registers Carve's standard tabs definitions. Frontmatter, table of contents placement, autolinks, admonitions, and mentions are core syntax and their old names are accepted as harmless compatibility aliases.
 
 ```php
 $renderer = new \MarkupCarve\CakeCarve\Carve\CarveRenderer([

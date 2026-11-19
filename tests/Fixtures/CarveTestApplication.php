@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace MarkupCarve\CakeCarve\Test\TestCase\Command;
+namespace MarkupCarve\CakeCarve\Test\Fixtures;
 
 use Cake\Console\CommandCollection;
 use Cake\Http\BaseApplication;

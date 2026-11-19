@@ -24,7 +24,7 @@
     "require": {
         "php": "^8.2",
         "cakephp/cakephp": "^5.2",
-        "markup-carve/carve-php": "dev-next2#42c42c1762eae5afcfa326feeccdfadc80c8dcd9"
+        "markup-carve/carve-php": "dev-next2#db1624daf966ccfefb5adccf919c05ac89b7af4e"
     },
     "require-dev": {
         "php-collective/code-sniffer": "^0.6.0",
