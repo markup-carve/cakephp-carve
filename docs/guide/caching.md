@@ -13,7 +13,7 @@ Put this under `Carve` in your app config:
 ],
 ```
 
-The cache key includes the source, effective options, and Carve2 adapter version. A different source or option set gets a different result. For files, the key also includes the path and hashes of included files, so editing an included file invalidates that result.
+The cache key includes the source, effective options, and Carve adapter version. A different source or option set gets a different result. For files, the key also includes the path and hashes of included files, so editing an included file invalidates that result.
 
 ## Handle custom extensions and includes
 

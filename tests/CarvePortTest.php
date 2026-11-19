@@ -2,23 +2,24 @@
 
 declare(strict_types=1);
 
-namespace MarkupCarve\CakeCarve\Test\V2;
+namespace MarkupCarve\CakeCarve\Test;
 
 use Cake\Core\Configure;
 use Cake\View\View;
+use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Validation\CarveValidation;
 use MarkupCarve\CakeCarve\View\Helper\CarveHelper;
-use MarkupCarve\Carve2\Extension\Claim;
-use MarkupCarve\Carve2\Extension\ExtensionDefinition;
-use MarkupCarve\Carve2\Extension\ExtensionProvider;
-use MarkupCarve\Carve2\Extension\RenderHost;
-use MarkupCarve\Carve2\Node;
-use MarkupCarve\Carve2\Output\OutputWriter;
+use MarkupCarve\Carve\Extension\Claim;
+use MarkupCarve\Carve\Extension\ExtensionDefinition;
+use MarkupCarve\Carve\Extension\ExtensionProvider;
+use MarkupCarve\Carve\Extension\RenderHost;
+use MarkupCarve\Carve\Node;
+use MarkupCarve\Carve\Output\OutputWriter;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
-class Carve2PortTest extends TestCase
+class CarvePortTest extends TestCase
 {
     public function testRenderAndSecureDefaults(): void
     {
@@ -37,7 +38,7 @@ class Carve2PortTest extends TestCase
         self::assertStringContainsString('<section id="One">', $result->html());
     }
 
-    public function testExtensionProviderUsesCarve2Definition(): void
+    public function testExtensionProviderUsesCarveDefinition(): void
     {
         $provider = new class implements ExtensionProvider {
             public function definitions(): array
@@ -81,7 +82,7 @@ class Carve2PortTest extends TestCase
 
     public function testFileIncludesAndIdentity(): void
     {
-        $root = sys_get_temp_dir() . '/cake-carve2-' . bin2hex(random_bytes(5));
+        $root = sys_get_temp_dir() . '/cake-carve-' . bin2hex(random_bytes(5));
         mkdir($root);
         file_put_contents($root . '/main.crv', "{{ part.crv }}\n");
         file_put_contents($root . '/part.crv', "Included *text*.\n");
@@ -101,7 +102,7 @@ class Carve2PortTest extends TestCase
 
     public function testMissingIncludeCreatedAfterCachedRender(): void
     {
-        $root = sys_get_temp_dir() . '/cake-carve2-missing-' . bin2hex(random_bytes(5));
+        $root = sys_get_temp_dir() . '/cake-carve-missing-' . bin2hex(random_bytes(5));
         mkdir($root);
         file_put_contents($root . '/main.crv', "{{ one.crv }}\n\n{{ two.crv }}\n");
         file_put_contents($root . '/one.crv', "One.\n");
@@ -133,7 +134,7 @@ class Carve2PortTest extends TestCase
 
     public function testLintFileUsesIncludes(): void
     {
-        $root = sys_get_temp_dir() . '/cake-carve2-lint-' . bin2hex(random_bytes(5));
+        $root = sys_get_temp_dir() . '/cake-carve-lint-' . bin2hex(random_bytes(5));
         mkdir($root);
         file_put_contents($root . '/main.crv', "{#a}\nx\n\n{#a}\ny\n");
         try {
@@ -148,7 +149,7 @@ class Carve2PortTest extends TestCase
 
     public function testIncludedFileLintPending(): void
     {
-        $this->markTestSkipped('Carve2 included-file lint does not report duplicate-id yet; carve-php issue 5234.');
+        $this->markTestSkipped('Carve included-file lint does not report duplicate-id yet; carve-php issue 5234.');
     }
 
     public function testHtmlImport(): void
@@ -159,19 +160,16 @@ class Carve2PortTest extends TestCase
         self::assertNotEmpty((new CarveRenderer())->import('<script>x</script>', 'html')->losses());
     }
 
-    public function testLegacyImportsReturnFormattedSourceAndReviewDiagnostic(): void
+    public function testRemovedImportFormatsAreRejected(): void
     {
         $renderer = new CarveRenderer();
-        foreach (
-            [
-                'markdown' => '**bold**',
-                'djot' => '*bold*',
-                'bbcode' => '[b]bold[/b]',
-            ] as $from => $source
-        ) {
-            $result = $renderer->import($source, $from);
-            self::assertSame("*bold*\n", $result->value);
-            self::assertContains('legacy-import-review', array_map(static fn ($item): string => $item->code, $result->losses()));
+        foreach (['markdown', 'djot', 'bbcode'] as $from) {
+            try {
+                $renderer->import('text', $from);
+                self::fail('Removed importer unexpectedly accepted ' . $from);
+            } catch (InvalidArgumentException $exception) {
+                self::assertSame('Unknown Carve import format: ' . $from, $exception->getMessage());
+            }
         }
     }
 
@@ -212,7 +210,7 @@ class Carve2PortTest extends TestCase
                 return CarveRenderer::plainText($tree);
             }
         };
-        $path = tempnam(sys_get_temp_dir(), 'cake-carve2-target-');
+        $path = tempnam(sys_get_temp_dir(), 'cake-carve-target-');
         self::assertIsString($path);
         file_put_contents($path, 'Hello');
         try {
@@ -231,7 +229,7 @@ class Carve2PortTest extends TestCase
         $helper->markdown('Hello');
     }
 
-    public function testValidationUsesCarve2TextNodes(): void
+    public function testValidationUsesCarveTextNodes(): void
     {
         self::assertTrue(CarveValidation::valid('*Hi*', ['maxLength' => 2]));
         self::assertSame('Carve content is too long.', CarveValidation::valid('*Hello*', ['maxLength' => 2]));
@@ -269,18 +267,33 @@ class Carve2PortTest extends TestCase
         $this->markTestSkipped('Carve 0.2 heading_permalinks extension has no 0.2 definition yet.');
     }
 
-    public function testInlineExtensionRendererPending(): void
+    public function testInlineExtensionRendererRunsThroughTheHost(): void
     {
-        $this->markTestSkipped('Carve2 inline extension renderer is pending in carve-php issue 5232.');
+        $definition = new ExtensionDefinition(
+            'host.embed',
+            '1',
+            matcher: ['form' => 'inline', 'name' => 'embed'],
+            transform: static function (Claim $claim): Node {
+                $node = new Node('inline_extension', []);
+                $node->f['name'] = 'host.embed';
+                $node->f['version'] = '1';
+                $node->f['fallback'] = $claim->node->children ?? [];
+
+                return $node;
+            },
+            renderer: static fn (Node $node, RenderHost $host): string => '<b>handled</b>',
+        );
+        $renderer = new CarveRenderer(['extensions' => [$definition]]);
+        self::assertStringContainsString('<b>handled</b>', $renderer->toHtml('Watch :embed[abc].'));
     }
 
     public function testStaticExtensionRendererPending(): void
     {
-        $this->markTestSkipped('Carve2 static extension render channel is pending in carve issue 6070.');
+        $this->markTestSkipped('Carve static extension render channel is pending in carve issue 6070.');
     }
 
     public function testDocumentTransformPending(): void
     {
-        $this->markTestSkipped('Carve2 document transform hook is pending in carve issue 6070.');
+        $this->markTestSkipped('Carve document transform hook is pending in carve issue 6070.');
     }
 }

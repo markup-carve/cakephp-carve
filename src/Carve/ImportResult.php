@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace MarkupCarve\CakeCarve\Carve;
 
-use MarkupCarve\Carve2\Diagnostics\Diagnostic;
-use MarkupCarve\Carve2\Import\ImportResult as EngineImportResult;
+use MarkupCarve\Carve\Diagnostics\Diagnostic;
+use MarkupCarve\Carve\Import\ImportResult as EngineImportResult;
 
 final class ImportResult
 {
     /**
      * @param string $value
      * @param string $sourceFormat
-     * @param array<\MarkupCarve\Carve2\Diagnostics\Diagnostic> $diagnostics
-     * @param \MarkupCarve\Carve2\Import\ImportResult $engineResult
+     * @param array<\MarkupCarve\Carve\Diagnostics\Diagnostic> $diagnostics
+     * @param \MarkupCarve\Carve\Import\ImportResult $engineResult
      */
     public function __construct(
         public readonly string $value,
@@ -24,7 +24,7 @@ final class ImportResult
     }
 
     /**
-     * @return array<\MarkupCarve\Carve2\Diagnostics\Diagnostic>
+     * @return array<\MarkupCarve\Carve\Diagnostics\Diagnostic>
      */
     public function losses(): array
     {

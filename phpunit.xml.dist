@@ -3,13 +3,10 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
          colors="true"
-         defaultTestSuite="Carve2">
+         defaultTestSuite="Carve">
     <testsuites>
-        <testsuite name="Carve2">
-            <directory>tests/V2</directory>
-        </testsuite>
-        <testsuite name="Legacy01">
-            <directory>tests/TestCase</directory>
+        <testsuite name="Carve">
+            <directory>tests</directory>
         </testsuite>
     </testsuites>
     <source>

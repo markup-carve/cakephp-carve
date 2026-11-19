@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace MarkupCarve\CakeCarve\Test\V2;
+namespace MarkupCarve\CakeCarve\Test;
 
 use Cake\Console\TestSuite\ConsoleIntegrationTestTrait;
 use Cake\TestSuite\TestCase;
-use MarkupCarve\CakeCarve\Test\TestCase\Command\CarveTestApplication;
+use MarkupCarve\CakeCarve\Test\Fixtures\CarveTestApplication;
 
-class Carve2CommandTest extends TestCase
+class CarveCommandTest extends TestCase
 {
     use ConsoleIntegrationTestTrait;
 
@@ -18,7 +18,7 @@ class Carve2CommandTest extends TestCase
     {
         parent::setUp();
         $this->configApplication(CarveTestApplication::class, [ROOT . '/config']);
-        $this->root = sys_get_temp_dir() . '/cake-carve2-commands-' . bin2hex(random_bytes(5));
+        $this->root = sys_get_temp_dir() . '/cake-carve-commands-' . bin2hex(random_bytes(5));
         mkdir($this->root);
     }
 
@@ -56,11 +56,11 @@ class Carve2CommandTest extends TestCase
         $markdown = $this->root . '/input.md';
         file_put_contents($markdown, '**bold**');
         $this->exec('carve convert --from markdown ' . $markdown);
-        $this->assertExitCode(0);
-        $this->assertOutputContains('*bold*');
+        $this->assertExitCode(1);
+        $this->assertErrorContains('Unknown Carve import format: markdown');
         $this->exec('carve convert --from markdown --check-loss ' . $markdown);
         $this->assertExitCode(1);
-        $this->assertErrorContains('Review this 0.1 import');
+        $this->assertErrorContains('Unknown Carve import format: markdown');
     }
 
     public function testUnregisteredWriterAndImportLoss(): void
