@@ -362,12 +362,23 @@ class CarveRenderer implements CarveRendererInterface
             }
             $registry->register($writer);
         }
+        if ($target === 'text' && !$registry->has('text')) {
+            $target = 'plain';
+        }
         if (!$registry->has($target)) {
             throw new RuntimeException('Carve 0.2 ' . $target . ' writer not available yet.');
         }
         $tree = Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
 
-        return Carve::writeTo($target, $tree, $this->engineOptions($effective, 'render', $file), $registry);
+        $writerOptions = $target === 'text'
+            ? $this->engineOptions($effective, 'render', $file)
+            : [
+                'smartTypography' => $effective['smartTypography'],
+                'strictLosses' => $effective['strictLosses'],
+                'urlPolicy' => $effective['urlPolicy'],
+            ];
+
+        return Carve::writeTo($target, $tree, $writerOptions, $registry);
     }
 
     /**

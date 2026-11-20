@@ -10,14 +10,15 @@ use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Validation\CarveValidation;
 use MarkupCarve\CakeCarve\View\Helper\CarveHelper;
+use MarkupCarve\Carve\Export\CarveExportError;
 use MarkupCarve\Carve\Extension\Claim;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
 use MarkupCarve\Carve\Extension\ExtensionProvider;
+use MarkupCarve\Carve\Extension\Navigation;
 use MarkupCarve\Carve\Extension\RenderHost;
 use MarkupCarve\Carve\Node;
 use MarkupCarve\Carve\Output\OutputWriter;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 class CarvePortTest extends TestCase
 {
@@ -147,9 +148,20 @@ class CarvePortTest extends TestCase
         }
     }
 
-    public function testIncludedFileLintPending(): void
+    public function testIncludedFileLintReportsDuplicateIds(): void
     {
-        $this->markTestSkipped('Carve included-file lint does not report duplicate-id yet; carve-php issue 5234.');
+        $root = sys_get_temp_dir() . '/cake-carve-included-lint-' . bin2hex(random_bytes(5));
+        mkdir($root);
+        file_put_contents($root . '/main.crv', "{#same}\nfirst\n\n{{ child.crv }}\n");
+        file_put_contents($root . '/child.crv', "{#same}\nsecond\n");
+        try {
+            $findings = (new CarveRenderer(['includeRoot' => $root]))->lintFile($root . '/main.crv');
+            self::assertContains('duplicate-id', array_column($findings, 'rule'));
+        } finally {
+            unlink($root . '/main.crv');
+            unlink($root . '/child.crv');
+            rmdir($root);
+        }
     }
 
     public function testHtmlImport(): void
@@ -192,9 +204,7 @@ class CarvePortTest extends TestCase
 
     public function testUnavailableWriterGivesClearError(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('markdown writer not available yet');
-        (new CarveRenderer())->toMarkdown('Hello');
+        self::assertSame("Hello\n", (new CarveRenderer())->toMarkdown('Hello'));
     }
 
     public function testFileTargetUsesRegisteredWriter(): void
@@ -224,9 +234,7 @@ class CarvePortTest extends TestCase
     {
         $helper = new CarveHelper(new View(), ['debug' => false]);
         self::assertSame('<p>Hello</p>', $helper->convert('Hello'));
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('markdown writer not available yet');
-        $helper->markdown('Hello');
+        self::assertSame('Hello', $helper->markdown('Hello'));
     }
 
     public function testValidationUsesCarveTextNodes(): void
@@ -247,19 +255,25 @@ class CarvePortTest extends TestCase
         }
     }
 
-    public function testMarkdownWriterPending(): void
+    public function testMarkdownWriterIsAvailable(): void
     {
-        $this->markTestSkipped('Carve 0.2 markdown writer is not registered yet.');
+        self::assertSame("**Bold**\n", (new CarveRenderer())->toMarkdown('*Bold*'));
     }
 
-    public function testTextWriterPending(): void
+    public function testMarkdownWriterHonorsStrictLosses(): void
     {
-        $this->markTestSkipped('Carve 0.2 text writer is not registered yet.');
+        $this->expectException(CarveExportError::class);
+        (new CarveRenderer())->toMarkdown("{#label}\ntext", ['strictLosses' => true]);
     }
 
-    public function testAnsiWriterPending(): void
+    public function testTextWriterIsAvailable(): void
     {
-        $this->markTestSkipped('Carve 0.2 ansi writer is not registered yet.');
+        self::assertSame("Bold\n", (new CarveRenderer())->toText('*Bold*'));
+    }
+
+    public function testAnsiWriterIsAvailable(): void
+    {
+        self::assertStringContainsString('Bold', (new CarveRenderer())->toAnsi('*Bold*'));
     }
 
     public function testLegacyExtensionPending(): void
@@ -287,13 +301,27 @@ class CarvePortTest extends TestCase
         self::assertStringContainsString('<b>handled</b>', $renderer->toHtml('Watch :embed[abc].'));
     }
 
-    public function testStaticExtensionRendererPending(): void
+    public function testStaticExtensionRendererRunsThroughTheHost(): void
     {
-        $this->markTestSkipped('Carve static extension render channel is pending in carve issue 6070.');
+        $definition = new ExtensionDefinition(
+            'host.static',
+            '1',
+            matcher: ['form' => 'inline', 'name' => 'static'],
+            transform: static function (Claim $claim): Node {
+                $node = new Node('inline_extension', []);
+                $node->f = ['name' => 'host.static', 'version' => '1', 'fallback' => $claim->node->children ?? []];
+
+                return $node;
+            },
+            buildTimeRenderer: static fn (Node $node, RenderHost $host): string => '<b>static</b>',
+        );
+        $renderer = new CarveRenderer(['extensions' => [$definition], 'mode' => 'static']);
+        self::assertStringContainsString('<b>static</b>', $renderer->toHtml(':static[abc]'));
     }
 
-    public function testDocumentTransformPending(): void
+    public function testDocumentTransformRunsThroughTheHost(): void
     {
-        $this->markTestSkipped('Carve document transform hook is pending in carve issue 6070.');
+        $renderer = new CarveRenderer(['extensions' => [Navigation::headingNumbers()]]);
+        self::assertStringContainsString('section-number', $renderer->toHtml('# Heading'));
     }
 }

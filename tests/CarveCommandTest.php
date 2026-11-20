@@ -63,13 +63,13 @@ class CarveCommandTest extends TestCase
         $this->assertErrorContains('Unknown Carve import format: markdown');
     }
 
-    public function testUnregisteredWriterAndImportLoss(): void
+    public function testMarkdownWriterAndImportLoss(): void
     {
         $source = $this->root . '/input.crv';
         file_put_contents($source, 'Hello');
         $this->exec('carve render --format markdown ' . $source);
-        $this->assertExitCode(1);
-        $this->assertErrorContains('markdown writer not available yet');
+        $this->assertExitCode(0);
+        $this->assertOutputContains('Hello');
 
         $html = $this->root . '/loss.html';
         file_put_contents($html, '<script>x</script>');
