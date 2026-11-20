@@ -6,6 +6,7 @@ namespace MarkupCarve\CakeCarve\Carve;
 
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
+use Composer\InstalledVersions;
 use InvalidArgumentException;
 use MarkupCarve\Carve\Attrs;
 use MarkupCarve\Carve\Carve;
@@ -619,7 +620,10 @@ class CarveRenderer implements CarveRendererInterface
             throw new InvalidArgumentException('Invalid Carve cache prefix.');
         }
 
-        return $prefix . hash('sha256', serialize([Carve::class, $kind, $source, $cache['version'] ?? null, $keyOptions]));
+        return $prefix . hash('sha256', serialize([
+            Carve::class, InstalledVersions::getReference('markup-carve/carve-php'),
+            $kind, $source, $cache['version'] ?? null, $keyOptions,
+        ]));
     }
 
     private static function containsObject(mixed $value): bool
