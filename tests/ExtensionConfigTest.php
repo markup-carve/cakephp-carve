@@ -93,6 +93,13 @@ final class ExtensionConfigTest extends TestCase
         $toc = $trusted->render("`<h2 id=\"manual\">Manual</h2>`{=html}\n\n# Real\n")->toc();
         self::assertSame('Real', $toc[0]['text']);
         self::assertSame('Real', $toc[0]['id']);
+        $duplicateText = new CarveRenderer(['rawHtml' => true, 'headingIds' => 'lower', 'extensions' => ['heading_level_shift']]);
+        $duplicateToc = $duplicateText->render("`<h2 id=\"manual\">My Title</h2>`{=html}\n\n# My Title\n")->toc();
+        self::assertSame('my-title', $duplicateToc[0]['id']);
+        $noIds = new CarveRenderer(['rawHtml' => true, 'headingIds' => 'off', 'extensions' => ['heading_level_shift']]);
+        $noIdsToc = $noIds->render("`<h3 id=\"raw\">Real preview</h3>`{=html}\n\n# Real\n")->toc();
+        self::assertSame(2, $noIdsToc[0]['level']);
+        self::assertNull($noIdsToc[0]['id']);
         $dataId = new CarveRenderer(['extensions' => [['type' => 'default_attributes', 'defaults' => ['heading' => ['data-id' => 'wrong']]]]]);
         self::assertSame('Real', $dataId->render("# Real\n")->toc()[0]['id']);
     }

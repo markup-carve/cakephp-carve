@@ -297,7 +297,7 @@ class CarveRenderer implements CarveRendererInterface
             }
             array_push($extensions, ...$factory->create($extension));
         }
-        $out = ['extensions' => $extensions];
+        $out = ['extensions' => $extensions, 'headingIds' => $effective['headingIds']];
         if ($stage === 'render') {
             foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'softBreak', 'social', 'headingIds', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
                 $out[$key] = $effective[$key];
@@ -454,10 +454,14 @@ class CarveRenderer implements CarveRendererInterface
 
     /**
      * @param array<array<string, mixed>> $toc
-     * @param list<array{level: int, id: string|null, text: string}> $shapes
+     * @param list<array{level: int, id: string|null, text: string, inSection: bool}> $shapes
      */
     private static function applyRenderedHeadingShapes(array &$toc, array $shapes): void
     {
+        $sectionShapes = array_values(array_filter($shapes, static fn (array $shape): bool => $shape['inSection']));
+        if ($sectionShapes !== []) {
+            $shapes = $sectionShapes;
+        }
         $used = [];
         $byId = [];
         foreach ($shapes as $index => $shape) {
@@ -506,7 +510,7 @@ class CarveRenderer implements CarveRendererInterface
     }
 
     /**
-     * @return list<array{level: int, id: string|null, text: string}>
+     * @return list<array{level: int, id: string|null, text: string, inSection: bool}>
      */
     private static function renderedHeadingShapes(string $html): array
     {
@@ -533,7 +537,7 @@ class CarveRenderer implements CarveRendererInterface
                 $end = strpos($html, '</h' . $level[1] . '>', $start);
                 $body = $end === false ? '' : substr($html, $start, $end - $start);
                 $text = trim(html_entity_decode(strip_tags($body), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-                $headings[] = ['level' => (int)$level[1], 'id' => $id, 'text' => $text];
+                $headings[] = ['level' => (int)$level[1], 'id' => $id, 'text' => $text, 'inSection' => $sections !== []];
             }
         }
 
