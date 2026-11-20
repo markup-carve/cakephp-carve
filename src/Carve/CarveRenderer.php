@@ -374,6 +374,7 @@ class CarveRenderer implements CarveRendererInterface
             ? $this->engineOptions($effective, 'render', $file)
             : [
                 'smartTypography' => $effective['smartTypography'],
+                'strictLosses' => $effective['strictLosses'],
                 'urlPolicy' => $effective['urlPolicy'],
             ];
 

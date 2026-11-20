@@ -10,6 +10,7 @@ use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Validation\CarveValidation;
 use MarkupCarve\CakeCarve\View\Helper\CarveHelper;
+use MarkupCarve\Carve\Export\CarveExportError;
 use MarkupCarve\Carve\Extension\Claim;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
 use MarkupCarve\Carve\Extension\ExtensionProvider;
@@ -257,6 +258,12 @@ class CarvePortTest extends TestCase
     public function testMarkdownWriterIsAvailable(): void
     {
         self::assertSame("**Bold**\n", (new CarveRenderer())->toMarkdown('*Bold*'));
+    }
+
+    public function testMarkdownWriterHonorsStrictLosses(): void
+    {
+        $this->expectException(CarveExportError::class);
+        (new CarveRenderer())->toMarkdown("{#label}\ntext", ['strictLosses' => true]);
     }
 
     public function testTextWriterIsAvailable(): void
