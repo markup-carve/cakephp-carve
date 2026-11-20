@@ -1,6 +1,6 @@
 # Extensions in Carve 0.2
 
-The 0.2 extension API takes `ExtensionDefinition` or `ExtensionProvider` instances in `extensions`. The `tabs` shorthand registers Carve's standard tabs definitions. Frontmatter, table of contents placement, autolinks, admonitions, and mentions are core syntax and their old names are accepted as harmless compatibility aliases.
+The 0.2 extension API takes `ExtensionDefinition`, `ExtensionProvider`, or names and option arrays in `extensions`. Names map to carve-php bundle factories. For example, `heading_permalinks`, `autolink`, `table_of_contents`, `wikilinks`, `citations`, and `default_attributes` run through the engine.
 
 ```php
 $renderer = new \MarkupCarve\CakeCarve\Carve\CarveRenderer([
@@ -8,4 +8,4 @@ $renderer = new \MarkupCarve\CakeCarve\Carve\CarveRenderer([
 ]);
 ```
 
-Other 0.1 extension names and config arrays have no direct 0.2 definition yet. The plugin reports `Carve 0.2 extension <name> is not available yet` when one is configured. Register an equivalent 0.2 definition when it becomes available. The engine's inline extension renderers, static render channel, and document transforms are still provisional; the plugin does not route 0.1 callbacks through them.
+Use `ExtensionFactory::types()` for the supported names. Array entries use a `type` and snake case factory options, for example `['type' => 'wikilinks', 'url_template' => '/wiki/{page}']`. Unknown options fail. Bundle document transforms run during HTML rendering. Configure the `social` engine option for mentions; the old `mentions` name reports an error.

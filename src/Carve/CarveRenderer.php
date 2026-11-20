@@ -7,11 +7,13 @@ namespace MarkupCarve\CakeCarve\Carve;
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use InvalidArgumentException;
+use MarkupCarve\Carve\Attrs;
 use MarkupCarve\Carve\Carve;
 use MarkupCarve\Carve\Diagnostics\Diagnostic;
+use MarkupCarve\Carve\Extension\Bundle;
+use MarkupCarve\Carve\Extension\DocumentTransform;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
 use MarkupCarve\Carve\Extension\ExtensionProvider;
-use MarkupCarve\Carve\Extension\Tabs;
 use MarkupCarve\Carve\Include\FileResolver;
 use MarkupCarve\Carve\Include\IncludeResolver;
 use MarkupCarve\Carve\Node;
@@ -37,6 +39,9 @@ class CarveRenderer implements CarveRendererInterface
             'mode' => 'interactive',
             'sections' => true,
             'smartTypography' => true,
+            'softBreak' => 'newline',
+            'social' => [],
+            'headingIds' => 'keep-case',
             'sourceLines' => false,
             'strictLosses' => false,
             'roundtrip' => false,
@@ -93,7 +98,7 @@ class CarveRenderer implements CarveRendererInterface
     {
         [$source, $real] = self::readFile($path);
         $effective = $this->options($options);
-        $parseOptions = $this->engineOptions($effective, 'parse', $real);
+        $parseOptions = ['headingIds' => $effective['headingIds']] + $this->engineOptions($effective, 'parse', $real);
         $tree = Carve::parse($source, $parseOptions);
         $dependencies = $this->dependencies($tree, $parseOptions);
         $states = [];
@@ -271,7 +276,6 @@ class CarveRenderer implements CarveRendererInterface
      * @param string $stage
      *
      * @throws \InvalidArgumentException
-     * @throws \RuntimeException
      *
      * @return array<string, mixed>
      */
@@ -281,21 +285,22 @@ class CarveRenderer implements CarveRendererInterface
         if (!is_array($effective['extensions'])) {
             throw new InvalidArgumentException('Invalid Carve extensions.');
         }
+        $factory = new ExtensionFactory();
         foreach ($effective['extensions'] as $extension) {
-            if (in_array($extension, ['frontmatter', 'table_of_contents', 'autolink', 'admonition', 'mentions'], true)) {
+            if (!is_string($extension) && !is_array($extension) && !$extension instanceof ExtensionDefinition && !$extension instanceof ExtensionProvider) {
+                throw new InvalidArgumentException('Invalid Carve extension entry.');
+            }
+            if ($extension === 'frontmatter' || $extension === 'admonition') {
                 continue;
             }
-            if ($extension === 'tabs') {
-                array_push($extensions, ...Tabs::extensions(true));
-            } elseif ($extension instanceof ExtensionDefinition || $extension instanceof ExtensionProvider) {
-                $extensions[] = $extension;
-            } else {
-                throw new RuntimeException('Carve 0.2 extension ' . (is_string($extension) ? $extension : get_debug_type($extension)) . ' is not available yet.');
+            if ($extension === 'mentions') {
+                throw new InvalidArgumentException('Configure the Carve social option for mentions.');
             }
+            array_push($extensions, ...$factory->create($extension));
         }
         $out = ['extensions' => $extensions];
         if ($stage === 'render') {
-            foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
+            foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'softBreak', 'social', 'headingIds', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
                 $out[$key] = $effective[$key];
             }
         }
@@ -330,8 +335,18 @@ class CarveRenderer implements CarveRendererInterface
     private function renderSource(string $source, array $effective, ?string $file = null, ?Node $tree = null, array $dependencies = []): RenderedCarve
     {
         $options = $this->engineOptions($effective, 'render', $file);
-        $rendered = Carve::renderWithDiagnostics($source, $options);
-        $tree ??= Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
+        [$options['extensions'], $transforms] = self::orderedExtensions(is_array($options['extensions']) ? $options['extensions'] : []);
+        $markerName = 'data-carve-host-toc-' . bin2hex(random_bytes(8));
+        $renderedTree = null;
+        array_push($transforms, new DocumentTransform('cake.metadata', static function (Node $view) use (&$renderedTree, $markerName): Node {
+            $index = 0;
+            self::markHeadings($view, $index, $markerName);
+            $renderedTree = $view;
+
+            return $view;
+        }));
+        $rendered = Carve::renderWithDocumentTransforms($source, $transforms, $options);
+        $tree ??= Carve::parse($source, ['headingIds' => $effective['headingIds']] + $this->engineOptions($effective, 'parse', $file));
         $frontmatter = null;
         $toc = [];
         foreach ($tree->children ?? [] as $node) {
@@ -339,13 +354,51 @@ class CarveRenderer implements CarveRendererInterface
                 $frontmatter = ['format' => is_string($node->f['format'] ?? null) ? $node->f['format'] : '', 'content' => is_string($node->f['value'] ?? null) ? $node->f['value'] : ''];
             }
         }
-        self::headings($tree, $toc);
+        self::headings($renderedTree ?? $tree, $toc);
+        $shapes = self::markedHeadingShapes($rendered->html, $markerName, $effective['sections'] === true);
+        foreach ($toc as $index => &$heading) {
+            if (isset($shapes[$index])) {
+                $heading['level'] = $shapes[$index]['level'];
+                $heading['id'] = $shapes[$index]['id'];
+            }
+        }
+        unset($heading);
+        $html = self::stripHeadingMarkers($rendered->html, $markerName);
         if ($file !== null && $dependencies === []) {
             $dependencies = $this->dependencies($tree, $this->engineOptions($effective, 'parse', $file));
         }
         $warnings = array_map(static fn (Diagnostic $d): array => self::finding($d, $source), $rendered->diagnostics);
 
-        return new RenderedCarve($source, $rendered->html, $toc, $frontmatter, $warnings, $dependencies);
+        return new RenderedCarve($source, $html, $toc, $frontmatter, $warnings, $dependencies);
+    }
+
+    /**
+     * @param array<mixed> $extensions
+     *
+     * @return array{array<\MarkupCarve\Carve\Extension\ExtensionDefinition>, array<\MarkupCarve\Carve\Extension\DocumentTransform>}
+     */
+    private static function orderedExtensions(array $extensions): array
+    {
+        $definitions = [];
+        $transforms = [];
+        foreach ($extensions as $extension) {
+            $entries = $extension instanceof ExtensionProvider ? $extension->definitions() : [$extension];
+            foreach ($entries as $entry) {
+                if (!$entry instanceof ExtensionDefinition) {
+                    continue;
+                }
+                if ($entry->documentTransform !== null) {
+                    $transforms[] = new DocumentTransform($entry->name, $entry->documentTransform);
+                    $entry = new ExtensionDefinition($entry->name, $entry->version, $entry->slots, $entry->matcher, $entry->parent, $entry->transform, $entry->renderer, $entry->buildTimeRenderer, $entry->semanticKeys, $entry->quotes);
+                }
+                $definitions[] = $entry;
+            }
+            if ($extension instanceof Bundle) {
+                array_push($transforms, ...$extension->transforms());
+            }
+        }
+
+        return [$definitions, $transforms];
     }
 
     /**
@@ -410,11 +463,78 @@ class CarveRenderer implements CarveRendererInterface
     private static function headings(Node $node, array &$toc): void
     {
         if ($node->type === 'heading') {
-            $toc[] = ['level' => $node->f['level'] ?? 1, 'id' => $node->f['generatedId'] ?? null, 'text' => self::plainText($node)];
+            $attrs = $node->f['attrs'] ?? null;
+            $toc[] = ['level' => $node->f['level'] ?? 1, 'id' => ($attrs instanceof Attrs ? $attrs->id : null) ?? ($node->f['generatedId'] ?? null), 'text' => trim(self::tocText($node))];
         }
         foreach ($node->children ?? [] as $child) {
             self::headings($child, $toc);
         }
+    }
+
+    private static function tocText(Node $node): string
+    {
+        $data = $node->f['data'] ?? null;
+        if (is_array($data) && ($data['carve.headingPermalinks'] ?? null) === 'chrome') {
+            return '';
+        }
+        $text = in_array($node->type, ['text', 'code', 'code_block'], true) && is_string($node->f['value'] ?? null) ? $node->f['value'] : '';
+        if ($node->type === 'image' && is_string($node->f['alt'] ?? null)) {
+            $text = $node->f['alt'];
+        }
+        foreach ($node->children ?? [] as $child) {
+            $text .= self::tocText($child);
+        }
+
+        return $text;
+    }
+
+    private static function markHeadings(Node $node, int &$index, string $markerName): void
+    {
+        if ($node->type === 'heading') {
+            $attrs = $node->f['attrs'] ?? null;
+            $attrs = $attrs instanceof Attrs ? clone $attrs : new Attrs();
+            $attrs->setKey($markerName, (string)$index++);
+            $node->f['attrs'] = $attrs;
+        }
+        foreach ($node->children ?? [] as $child) {
+            self::markHeadings($child, $index, $markerName);
+        }
+    }
+
+    /**
+     * @return array<int, array{level: int, id: string|null}>
+     */
+    private static function markedHeadingShapes(string $html, string $markerName, bool $sectionsEnabled): array
+    {
+        preg_match_all('/<\/?section\b[^>]*>|<h[1-6]\b[^>]*>/i', $html, $matches);
+        $sections = [];
+        $shapes = [];
+        foreach ($matches[0] as $tag) {
+            if (str_starts_with($tag, '</section')) {
+                array_pop($sections);
+            } elseif (str_starts_with($tag, '<section')) {
+                $sections[] = self::tagId($tag);
+            } elseif (preg_match('/^<h([1-6])\b/i', $tag, $level) === 1 && preg_match('/\s' . preg_quote($markerName, '/') . '="(\d+)"/', $tag, $marker) === 1) {
+                $id = self::tagId($tag);
+                if ($id === null && $sectionsEnabled && $sections !== []) {
+                    $id = $sections[array_key_last($sections)];
+                }
+                $shapes[(int)$marker[1]] = ['level' => (int)$level[1], 'id' => $id];
+            }
+        }
+
+        return $shapes;
+    }
+
+    private static function stripHeadingMarkers(string $html, string $markerName): string
+    {
+        return preg_replace_callback('/<h[1-6]\b[^>]*>/i', static fn (array $match): string => preg_replace('/\s' . preg_quote($markerName, '/') . '="\d+"/', '', $match[0]) ?? $match[0], $html) ?? $html;
+    }
+
+    private static function tagId(string $tag): ?string
+    {
+        return preg_match('/(?:^|\s)id="([^"]*)"/i', $tag, $match) === 1
+            ? html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8') : null;
     }
 
     public static function plainText(Node $node): string

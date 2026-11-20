@@ -32,13 +32,16 @@ The merge order is defaults, application `Carve` config, selected preset, then o
 | `mode` | `interactive`, `static` | `interactive` | Select render mode. |
 | `sections` | Boolean | `true` | Wrap headings and following content in sections. |
 | `smartTypography` | Boolean | `true` | Enable typographic substitutions. |
+| `softBreak` | `newline`, `space`, `br` | `newline` | Render soft line breaks. |
+| `headingIds` | Engine heading ID mode | `keep-case` | Choose generated heading IDs. |
+| `social` | Mention and tag URL options | Empty | Link social references. |
 | `sourceLines` | Boolean | `false` | Add source positions to HTML. |
 | `strictLosses` | Boolean | `false` | Treat render losses as errors. |
 | `roundtrip` | Boolean | `false` | Emit roundtrip carriers. |
 | `symbols`, `labels` | Name to string map | Empty | Override symbols and UI labels. |
 | `includeRoot` | Path or `null` | `null` | Confine file includes to an absolute root. |
 | `includeResolver` | Carve resolver or callable | `null` | Supply custom include content. |
-| `extensions` | Carve definitions or providers | Empty | Register 0.2 extensions. |
+| `extensions` | Carve definitions, providers, or named bundles | Empty | Register 0.2 extensions. |
 | `writers` | Carve output writer instances | Empty | Register output targets. |
 | `cache` | `false` or Cake cache config map | `false` | Cache rendered results. |
 | `presets`, `preset` | Named option maps, name | `default` | Reuse option sets. |
@@ -63,11 +66,11 @@ $findings = $renderer->lint("{#a}\nx\n\n{#a}\ny\n");
 $imported = $renderer->import('<p>Hi <em>there</em></p>', 'html');
 ```
 
-`format()` uses the 0.2 canonical source writer. `lint()` exposes the 0.2 diagnostic code as `rule`, with message, line, and column. HTML import returns canonical 0.2 source and diagnostics. Markdown, Djot, and BBCode imports are unavailable; use the 0.2 upgrade tool before importing old documents.
+`format()` uses the 0.2 canonical source writer. `lint()` exposes the 0.2 diagnostic code as `rule`, with message, line, and column. HTML import returns canonical 0.2 source and diagnostics. Markdown, GFM, and Djot imports use the 0.2 importer. BBCode import is unavailable.
 
 ## Output writers
 
-The `toText()`, `toMarkdown()`, `toAnsi()`, helper, behavior, and CLI methods remain available. They select a writer from `Carve::writers()` plus any instances in `writers`. The engine does not yet register these three writers, so an unregistered target raises `Carve 0.2 <target> writer not available yet`.
+The `toText()`, `toMarkdown()`, `toAnsi()`, helper, behavior, and CLI methods remain available. They select a writer from `Carve::writers()` plus any instances in `writers`. The engine registers the text, Markdown, and ANSI writers. Applications can register additional writers.
 
 ```php
 $renderer = new CarveRenderer(['writers' => [$yourTextWriter]]);
