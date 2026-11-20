@@ -10,6 +10,7 @@ use InvalidArgumentException;
 use MarkupCarve\Carve\Carve;
 use MarkupCarve\Carve\Diagnostics\Diagnostic;
 use MarkupCarve\Carve\Extension\Bundle;
+use MarkupCarve\Carve\Extension\DocumentTransform;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
 use MarkupCarve\Carve\Extension\ExtensionProvider;
 use MarkupCarve\Carve\Include\FileResolver;
@@ -333,12 +334,7 @@ class CarveRenderer implements CarveRendererInterface
     private function renderSource(string $source, array $effective, ?string $file = null, ?Node $tree = null, array $dependencies = []): RenderedCarve
     {
         $options = $this->engineOptions($effective, 'render', $file);
-        $transforms = [];
-        foreach (is_array($options['extensions']) ? $options['extensions'] : [] as $extension) {
-            if ($extension instanceof Bundle) {
-                array_push($transforms, ...array_values($extension->transforms()));
-            }
-        }
+        [$options['extensions'], $transforms] = self::orderedExtensions(is_array($options['extensions']) ? $options['extensions'] : []);
         $rendered = Carve::renderWithDocumentTransforms($source, $transforms, $options);
         $tree ??= Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
         $frontmatter = null;
@@ -349,18 +345,42 @@ class CarveRenderer implements CarveRendererInterface
             }
         }
         self::headings($tree, $toc);
-        foreach (self::renderedHeadingShapes($rendered->html) as $index => $shape) {
-            if (isset($toc[$index])) {
-                $toc[$index]['level'] = $shape['level'];
-                $toc[$index]['id'] = $shape['id'];
-            }
-        }
+        self::applyRenderedHeadingShapes($toc, self::renderedHeadingShapes($rendered->html));
         if ($file !== null && $dependencies === []) {
             $dependencies = $this->dependencies($tree, $this->engineOptions($effective, 'parse', $file));
         }
         $warnings = array_map(static fn (Diagnostic $d): array => self::finding($d, $source), $rendered->diagnostics);
 
         return new RenderedCarve($source, $rendered->html, $toc, $frontmatter, $warnings, $dependencies);
+    }
+
+    /**
+     * @param array<mixed> $extensions
+     *
+     * @return array{array<\MarkupCarve\Carve\Extension\ExtensionDefinition>, array<\MarkupCarve\Carve\Extension\DocumentTransform>}
+     */
+    private static function orderedExtensions(array $extensions): array
+    {
+        $definitions = [];
+        $transforms = [];
+        foreach ($extensions as $extension) {
+            $entries = $extension instanceof ExtensionProvider ? $extension->definitions() : [$extension];
+            foreach ($entries as $entry) {
+                if (!$entry instanceof ExtensionDefinition) {
+                    continue;
+                }
+                if ($entry->documentTransform !== null) {
+                    $transforms[] = new DocumentTransform($entry->name, $entry->documentTransform);
+                    $entry = new ExtensionDefinition($entry->name, $entry->version, $entry->slots, $entry->matcher, $entry->parent, $entry->transform, $entry->renderer, $entry->buildTimeRenderer, $entry->semanticKeys, $entry->quotes);
+                }
+                $definitions[] = $entry;
+            }
+            if ($extension instanceof Bundle) {
+                array_push($transforms, ...$extension->transforms());
+            }
+        }
+
+        return [$definitions, $transforms];
     }
 
     /**
@@ -433,14 +453,67 @@ class CarveRenderer implements CarveRendererInterface
     }
 
     /**
-     * @return list<array{level: int, id: string|null}>
+     * @param array<array<string, mixed>> $toc
+     * @param list<array{level: int, id: string|null, text: string}> $shapes
+     */
+    private static function applyRenderedHeadingShapes(array &$toc, array $shapes): void
+    {
+        $used = [];
+        $byId = [];
+        foreach ($shapes as $index => $shape) {
+            if ($shape['id'] !== null) {
+                $byId[$shape['id']][] = $index;
+            }
+        }
+        foreach ($toc as &$heading) {
+            $wantedId = $heading['id'] ?? null;
+            $wantedText = $heading['text'] ?? '';
+            $matched = null;
+            if (is_string($wantedId) && $wantedId !== '') {
+                while (($byId[$wantedId] ?? []) !== []) {
+                    $candidate = array_shift($byId[$wantedId]);
+                    if (!isset($used[$candidate])) {
+                        $matched = $candidate;
+
+                        break;
+                    }
+                }
+            }
+            if ($matched === null) {
+                foreach ($shapes as $index => $shape) {
+                    if (!isset($used[$index]) && is_string($wantedText) && $wantedText !== '' && str_contains($shape['text'], $wantedText)) {
+                        $matched = $index;
+
+                        break;
+                    }
+                }
+            }
+            if ($matched === null) {
+                foreach ($shapes as $index => $shape) {
+                    if (!isset($used[$index])) {
+                        $matched = $index;
+
+                        break;
+                    }
+                }
+            }
+            if ($matched !== null) {
+                $used[$matched] = true;
+                $heading['level'] = $shapes[$matched]['level'];
+                $heading['id'] = $shapes[$matched]['id'];
+            }
+        }
+    }
+
+    /**
+     * @return list<array{level: int, id: string|null, text: string}>
      */
     private static function renderedHeadingShapes(string $html): array
     {
-        preg_match_all('/<\/?section\b[^>]*>|<h[1-6]\b[^>]*>/i', $html, $matches);
+        preg_match_all('/<\/?section\b[^>]*>|<h[1-6]\b[^>]*>/i', $html, $matches, PREG_OFFSET_CAPTURE);
         $sections = [];
         $headings = [];
-        foreach ($matches[0] as $tag) {
+        foreach ($matches[0] as [$tag, $offset]) {
             if (str_starts_with($tag, '</section')) {
                 array_pop($sections);
             } elseif (str_starts_with($tag, '<section')) {
@@ -456,7 +529,11 @@ class CarveRenderer implements CarveRendererInterface
                         }
                     }
                 }
-                $headings[] = ['level' => (int)$level[1], 'id' => $id];
+                $start = $offset + strlen($tag);
+                $end = strpos($html, '</h' . $level[1] . '>', $start);
+                $body = $end === false ? '' : substr($html, $start, $end - $start);
+                $text = trim(html_entity_decode(strip_tags($body), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                $headings[] = ['level' => (int)$level[1], 'id' => $id, 'text' => $text];
             }
         }
 
@@ -465,7 +542,7 @@ class CarveRenderer implements CarveRendererInterface
 
     private static function tagId(string $tag): ?string
     {
-        if (preg_match('/\bid="([^"]*)"/i', $tag, $match) !== 1) {
+        if (preg_match('/(?:^|\s)id="([^"]*)"/i', $tag, $match) !== 1) {
             return null;
         }
 
