@@ -54,13 +54,24 @@ class CarveCommandTest extends TestCase
         $this->assertOutputContains('Hi /there/');
 
         $markdown = $this->root . '/input.md';
-        file_put_contents($markdown, '**bold**');
+        file_put_contents($markdown, "| a | b |\n|---|--:|\n| 1 | 2 |\n\n~~gone~~\n");
         $this->exec('carve convert --from markdown ' . $markdown);
+        $this->assertExitCode(0);
+        $this->assertOutputContains("|= a |={>} b |\n| 1 | 2 |");
+        $this->assertOutputContains('{-gone-}');
+        $this->exec('carve convert --from gfm ' . $markdown);
+        $this->assertExitCode(0);
+        $this->assertOutputContains('|= a |={>} b |');
+
+        $djot = $this->root . '/input.dj';
+        file_put_contents($djot, '_hi_');
+        $this->exec('carve convert --from djot ' . $djot);
+        $this->assertExitCode(0);
+        $this->assertOutputContains('/hi/');
+
+        $this->exec('carve convert --from bbcode ' . $djot);
         $this->assertExitCode(1);
-        $this->assertErrorContains('Unknown Carve import format: markdown');
-        $this->exec('carve convert --from markdown --check-loss ' . $markdown);
-        $this->assertExitCode(1);
-        $this->assertErrorContains('Unknown Carve import format: markdown');
+        $this->assertErrorContains('Unknown Carve import format: bbcode');
     }
 
     public function testMarkdownWriterAndImportLoss(): void
