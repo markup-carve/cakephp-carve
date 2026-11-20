@@ -91,6 +91,10 @@ final class ExtensionConfigTest extends TestCase
         self::assertStringNotContainsString('data-carve-host-toc', $result->html());
         $raw = (new CarveRenderer(['rawHtml' => true]))->render("`<div data-carve-host-toc=\"42\">x</div>`{=html}\n");
         self::assertStringContainsString('data-carve-host-toc="42"', $raw->html());
+        foreach ([true, false] as $sections) {
+            $wrapped = new CarveRenderer(['rawHtml' => true, 'headingIds' => 'off', 'sections' => $sections]);
+            self::assertNull($wrapped->render("`<section id=\"outer\">`{=html}\n\n# Hi\n")->toc()[0]['id']);
+        }
     }
 
     public function testEngineRenderOptionsAndImporters(): void
