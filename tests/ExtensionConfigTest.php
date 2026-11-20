@@ -7,6 +7,8 @@ namespace MarkupCarve\CakeCarve\Test;
 use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Carve\ExtensionFactory;
+use MarkupCarve\Carve\Extension\ExtensionDefinition;
+use MarkupCarve\Carve\Node;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -73,6 +75,20 @@ final class ExtensionConfigTest extends TestCase
         $after = (new CarveRenderer(['extensions' => ['heading_permalinks', $defaults]]))->toHtml("# Hello\n");
         self::assertStringNotContainsString('permalink marked', $before);
         self::assertStringContainsString('permalink marked', $after);
+    }
+
+    public function testTocCaptureRunsTransformsOnceAndIncludesHeadingNumbers(): void
+    {
+        $calls = 0;
+        $extension = new ExtensionDefinition('test.once', '1', documentTransform: static function (Node $view) use (&$calls): Node {
+            ++$calls;
+
+            return $view;
+        });
+        $result = (new CarveRenderer(['rawHtml' => true, 'sections' => false, 'extensions' => [$extension, 'heading_numbers']]))->render("# Hello\n");
+        self::assertSame(1, $calls);
+        self::assertSame('1 Hello', $result->toc()[0]['text']);
+        self::assertStringNotContainsString('data-carve-host-toc', $result->html());
     }
 
     public function testEngineRenderOptionsAndImporters(): void
