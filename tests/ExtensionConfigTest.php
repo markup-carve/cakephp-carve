@@ -37,6 +37,12 @@ final class ExtensionConfigTest extends TestCase
         self::assertNotSame('', (new CarveRenderer(['extensions' => [$entry]]))->toHtml('hello'));
     }
 
+    public function testExternalLinksNofollowOption(): void
+    {
+        $entry = ['type' => 'external_links', 'nofollow' => true];
+        self::assertStringContainsString('nofollow', (new CarveRenderer(['extensions' => [$entry]]))->toHtml('[x](https://example.com)'));
+    }
+
     public function testUnknownOptionIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -58,5 +64,14 @@ final class ExtensionConfigTest extends TestCase
         self::assertStringContainsString('/people/alex', $renderer->toHtml('Hi @alex'));
         self::assertSame("= Title\n", $renderer->import('# Title', 'markdown')->value);
         self::assertSame("= Title\n", $renderer->import('# Title', 'djot')->value);
+    }
+
+    public function testTocUsesRenderedHeadingIdsAndLevels(): void
+    {
+        $renderer = new CarveRenderer(['headingIds' => 'lower', 'extensions' => ['heading_level_shift', 'heading_permalinks']]);
+        self::assertSame(
+            [['level' => 2, 'id' => 'my-title', 'text' => 'My Title']],
+            $renderer->render("# My Title\n")->toc(),
+        );
     }
 }

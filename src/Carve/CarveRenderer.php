@@ -6,6 +6,8 @@ namespace MarkupCarve\CakeCarve\Carve;
 
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
+use DOMDocument;
+use DOMElement;
 use InvalidArgumentException;
 use MarkupCarve\Carve\Carve;
 use MarkupCarve\Carve\Diagnostics\Diagnostic;
@@ -348,7 +350,7 @@ class CarveRenderer implements CarveRendererInterface
                 $frontmatter = ['format' => is_string($node->f['format'] ?? null) ? $node->f['format'] : '', 'content' => is_string($node->f['value'] ?? null) ? $node->f['value'] : ''];
             }
         }
-        self::headings($tree, $toc);
+        $toc = self::renderedHeadings($rendered->html);
         if ($file !== null && $dependencies === []) {
             $dependencies = $this->dependencies($tree, $this->engineOptions($effective, 'parse', $file));
         }
@@ -413,17 +415,35 @@ class CarveRenderer implements CarveRendererInterface
     }
 
     /**
-     * @param \MarkupCarve\Carve\Node $node
-     * @param array<array<string, mixed>> $toc
+     * @return array<array{level: int, id: string|null, text: string}>
      */
-    private static function headings(Node $node, array &$toc): void
+    private static function renderedHeadings(string $html): array
     {
-        if ($node->type === 'heading') {
-            $toc[] = ['level' => $node->f['level'] ?? 1, 'id' => $node->f['generatedId'] ?? null, 'text' => self::plainText($node)];
+        $document = new DOMDocument();
+        $document->loadHTML('<meta charset="utf-8"><body>' . $html . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET);
+        $toc = [];
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if (preg_match('/^h([1-6])$/', $element->tagName, $match) !== 1) {
+                continue;
+            }
+            $id = $element->getAttribute('id');
+            for ($parent = $element->parentNode; $id === '' && $parent instanceof DOMElement; $parent = $parent->parentNode) {
+                if ($parent->tagName === 'section') {
+                    $id = $parent->getAttribute('id');
+                }
+            }
+            $heading = $element->cloneNode(true);
+            if ($heading instanceof DOMElement) {
+                foreach (iterator_to_array($heading->getElementsByTagName('a')) as $anchor) {
+                    if (str_contains(' ' . $anchor->getAttribute('class') . ' ', ' permalink ')) {
+                        $anchor->parentNode?->removeChild($anchor);
+                    }
+                }
+            }
+            $toc[] = ['level' => (int)$match[1], 'id' => $id === '' ? null : $id, 'text' => trim($heading->textContent ?? '')];
         }
-        foreach ($node->children ?? [] as $child) {
-            self::headings($child, $toc);
-        }
+
+        return $toc;
     }
 
     public static function plainText(Node $node): string
