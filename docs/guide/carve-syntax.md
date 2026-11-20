@@ -5,9 +5,9 @@ Carve looks familiar to Markdown readers, but its emphasis marks differ. Start w
 ## Write a short document
 
 ````carve
-# Notes
+= Notes
 
-/italic/, *bold*, _underline_, ~strike~, =highlight=, H{,2,}O and x{^2^}.
+/italic/, *bold*, {_underline_}, {~strike~}, {=highlight=}, H{,2,}O and x{^2^}.
 
 [Carve](https://markup-carve.github.io/carve/)
 
@@ -24,7 +24,7 @@ echo 'hello';
 | Ada | 12 |
 ````
 
-A heading starts with `#`. Links use `[label](url)`. A list needs a blank line before its first item. Code fences put the language directly after the backticks, with no space. `|=` marks table headers, and `{>}` right after a cell marker right-aligns the column (`{<}` left, `{~}` center).
+A heading starts with `=` in canonical 0.2 source; `#` remains accepted. Links use `[label](url)`. A list needs a blank line before its first item. Code fences put the language directly after the backticks, with no space. `|=` marks table headers, and `{>}` right after a cell marker right-aligns the column (`{<}` left, `{~}` center). Bare underline, strike, and highlight markers are replaced by the braced forms in 0.2.
 
 ## Check the marks
 
@@ -32,9 +32,9 @@ A heading starts with `#`. Links use `[label](url)`. A list needs a blank line b
 | --- | --- |
 | `/italic/` | `<em>` |
 | `*bold*` | `<strong>` |
-| `_underline_` | `<u>` |
-| `~strike~` | `<s>` |
-| `=highlight=` | `<mark>` |
+| `{_underline_}` | `<u>` |
+| `{~strike~}` | `<s>` |
+| `{=highlight=}` | `<mark>` |
 | `{^sup^}` | `<sup>` |
 | `{,sub,}` | `<sub>` |
 

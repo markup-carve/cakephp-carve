@@ -6,35 +6,20 @@ namespace MarkupCarve\CakeCarve\Carve;
 
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
-use Closure;
+use Composer\InstalledVersions;
 use InvalidArgumentException;
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Converter\BbcodeToCarve;
-use MarkupCarve\Carve\Converter\DjotToCarve;
-use MarkupCarve\Carve\Converter\HtmlToCarve;
-use MarkupCarve\Carve\Converter\MarkdownToCarve;
-use MarkupCarve\Carve\Exception\ParseWarning;
-use MarkupCarve\Carve\Extension\ExtensionInterface;
-use MarkupCarve\Carve\Extension\FrontmatterExtension;
-use MarkupCarve\Carve\Extension\TableOfContentsExtension;
-use MarkupCarve\Carve\Lint\DocumentLinter;
-use MarkupCarve\Carve\Lint\IncludeLinter;
-use MarkupCarve\Carve\Node\Document;
-use MarkupCarve\Carve\Profile;
-use MarkupCarve\Carve\Renderer\AnsiRenderer;
-use MarkupCarve\Carve\Renderer\MarkdownRenderer;
-use MarkupCarve\Carve\Renderer\PlainTextRenderer;
-use MarkupCarve\Carve\Renderer\SmartTypographyMode;
-use MarkupCarve\Carve\Renderer\SoftBreakMode;
-use MarkupCarve\Carve\SafeMode;
-use MarkupCarve\Carve\Transform\FilesystemIncludeResolver;
-use MarkupCarve\Carve\Transform\IncludeExpander;
-use MarkupCarve\Carve\Transform\IncludeResolverInterface;
-use ReflectionFunction;
+use MarkupCarve\Carve\Attrs;
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Carve\Diagnostics\Diagnostic;
+use MarkupCarve\Carve\Extension\Bundle;
+use MarkupCarve\Carve\Extension\DocumentTransform;
+use MarkupCarve\Carve\Extension\ExtensionDefinition;
+use MarkupCarve\Carve\Extension\ExtensionProvider;
+use MarkupCarve\Carve\Include\FileResolver;
+use MarkupCarve\Carve\Include\IncludeResolver;
+use MarkupCarve\Carve\Node;
+use MarkupCarve\Carve\Output\OutputWriter;
 use RuntimeException;
-use Throwable;
-use UnexpectedValueException;
-use UnitEnum;
 
 class CarveRenderer implements CarveRendererInterface
 {
@@ -44,200 +29,144 @@ class CarveRenderer implements CarveRendererInterface
     private array $config;
 
     /**
-     * @var array<string, \MarkupCarve\Carve\CarveConverter>
-     */
-    private array $converters = [];
-
-    /**
-     * @var array<string, string>
-     */
-    private array $converterKeys = [];
-
-    /**
      * @param array<string, mixed> $config
      */
     public function __construct(array $config = [])
     {
         $defaults = [
-            'safeMode' => true,
-            'rawHtml' => null,
-            'xhtml' => false,
-            'strict' => false,
-            'warnings' => false,
-            'profile' => null,
-            'onDisallowed' => 'strip',
+            'rawHtml' => false,
+            'urlPolicy' => ['deny' => ['javascript', 'vbscript', 'data', 'file']],
+            'profile' => 'full',
             'mode' => 'interactive',
-            'softBreakMode' => null,
-            'smartTypography' => null,
+            'sections' => true,
+            'smartTypography' => true,
+            'softBreak' => 'newline',
+            'social' => [],
+            'headingIds' => 'keep-case',
+            'sourceLines' => false,
+            'strictLosses' => false,
+            'roundtrip' => false,
             'symbols' => [],
             'labels' => [],
-            'sourceLines' => false,
-            'roundTripMode' => false,
-            'renderers' => [],
+            'extensions' => [],
+            'writers' => [],
+            'includes' => null,
             'includeRoot' => null,
             'includeResolver' => null,
-            'extensions' => [],
             'cache' => false,
             'presets' => [
                 'default' => [],
-                'comment' => ['safeMode' => 'strict', 'profile' => 'comment'],
-                'trusted' => ['safeMode' => false],
+                'comment' => ['profile' => 'comment'],
+                'trusted' => ['rawHtml' => true],
             ],
         ];
         $global = Configure::read('Carve');
         $global = is_array($global) ? $global : [];
         $this->config = array_replace_recursive($defaults, $global, $config);
         foreach ([$global, $config] as $override) {
-            if (!isset($override['presets']) || !is_array($override['presets'])) {
-                continue;
-            }
-            foreach ($override['presets'] as $name => $preset) {
-                if (is_array($preset) && array_key_exists('extensions', $preset)) {
-                    $this->config['presets'][$name]['extensions'] = $preset['extensions'];
+            foreach (['extensions', 'writers', 'urlPolicy', 'includes'] as $key) {
+                if (array_key_exists($key, $override)) {
+                    $this->config[$key] = $override[$key];
                 }
             }
         }
-        if (array_key_exists('extensions', $global)) {
-            $this->config['extensions'] = $global['extensions'];
-        }
-        if (array_key_exists('extensions', $config)) {
-            $this->config['extensions'] = $config['extensions'];
-        }
     }
 
-    /**
-     * @param string $source
-     * @param array<string, mixed> $options
-     */
     public function toHtml(string $source, array $options = []): string
     {
         return $this->render($source, $options)->html();
     }
 
-    /**
-     * @param string $source
-     * @param array<string, mixed> $options
-     */
     public function render(string $source, array $options = []): RenderedCarve
     {
-        $options = $this->options($options);
-        $cacheKey = $this->cacheKey('string', $source, $options);
-        if ($cacheKey !== null) {
-            $cached = Cache::read($cacheKey, $this->cacheConfig($options));
+        $effective = $this->options($options);
+        $key = $this->cacheKey('string', $source, $effective);
+        if ($key !== null) {
+            $cached = Cache::read($key, $this->cacheConfig($effective));
             if ($cached instanceof RenderedCarve) {
                 return $cached;
             }
         }
-        $result = $this->renderSource($source, $options);
-        if ($cacheKey !== null) {
-            Cache::write($cacheKey, $result, $this->cacheConfig($options));
+        $result = $this->renderSource($source, $effective);
+        if ($key !== null) {
+            Cache::write($key, $result, $this->cacheConfig($effective));
         }
 
         return $result;
     }
 
-    /**
-     * @param string $path
-     * @param array<string, mixed> $options
-     *
-     * @throws \InvalidArgumentException
-     * @throws \RuntimeException
-     */
     public function renderFile(string $path, array $options = []): RenderedCarve
     {
-        $real = realpath($path);
-        if ($real === false || !is_file($real) || !is_readable($real)) {
-            throw new InvalidArgumentException('Unreadable Carve file: ' . $path);
-        }
-        $source = file_get_contents($real);
-        if ($source === false) {
-            throw new RuntimeException('Unable to read Carve file: ' . $path);
-        }
+        [$source, $real] = self::readFile($path);
         $effective = $this->options($options);
-        if ($effective['includeRoot'] === null && $effective['includeResolver'] === null) {
-            return $this->render($source, $options);
-        }
-        [$resolver, $root] = $this->includeResolver($effective, $real);
-        $converter = $this->converter('html', $effective);
-        $expander = new IncludeExpander($resolver, $real, source: $source, extensions: $converter->getExtensions());
-        $document = $converter->transform($converter->parse($source), $expander);
-        $warnings = $this->bool($effective, 'warnings')
-            ? array_map(self::warning(...), $converter->getWarnings())
-            : [];
-        $warnings = array_merge($warnings, array_map(self::warning(...), $expander->getWarnings()));
-        $root = $root === null ? null : rtrim($root, DIRECTORY_SEPARATOR);
-        $dependencies = array_map(static function ($dependency) use ($root): array {
-            $target = $dependency->getTarget();
-            $relative = $root === null ? $target : (str_starts_with($target, $root . DIRECTORY_SEPARATOR)
-                ? substr($target, strlen($root) + 1)
-                : '[outside-root]');
-
-            return ['path' => $relative, 'resolved' => $dependency->isResolved()];
-        }, $expander->getDependencies());
-
+        $parseOptions = ['headingIds' => $effective['headingIds']] + $this->engineOptions($effective, 'parse', $real);
+        $tree = Carve::parse($source, $parseOptions);
+        $dependencies = $this->dependencies($tree, $parseOptions);
         $states = [];
-        foreach ($expander->getDependencies() as $dependency) {
-            $target = $dependency->getTarget();
-            $states[$target] = $root !== null && str_starts_with($target, $root . DIRECTORY_SEPARATOR) && is_file($target)
-                ? hash_file('sha256', $target)
-                : null;
+        if (isset($effective['includeRoot']) && is_string($effective['includeRoot'])) {
+            $root = realpath($effective['includeRoot']);
+            foreach (Carve::includeDependencies($tree) as $dependency) {
+                if ($root !== false && $dependency['file'] !== null) {
+                    $file = $root . '/' . ltrim($dependency['file'], '/');
+                    $states[$file] = is_file($file) ? hash_file('sha256', $file) : null;
+                }
+            }
         }
-        if ($root === null) {
-            $states = $resolver instanceof IncludeCacheKeyProvider ? [$resolver->includeCacheKey($dependencies)] : [];
+        $resolver = $effective['includeResolver'] ?? $effective['includes'];
+        if ($resolver instanceof IncludeCacheKeyProvider) {
+            $legacyDependencies = array_map(static fn (array $item): array => [
+                'path' => is_string($item['path'] ?? null) ? $item['path'] : '',
+                'resolved' => ($item['resolved'] ?? false) === true,
+            ], $dependencies);
+            $states['resolver'] = $resolver->includeCacheKey($legacyDependencies);
         }
-        $cacheKey = $this->cacheKey('file', serialize([$source, $real, $states]), $effective);
-        if ($root === null && !$resolver instanceof IncludeCacheKeyProvider) {
-            $cacheKey = null;
+        $unresolved = false;
+        foreach ($dependencies as $dependency) {
+            if ($dependency['resolved'] !== true) {
+                $unresolved = true;
+
+                break;
+            }
         }
-        if ($cacheKey !== null) {
-            $cached = Cache::read($cacheKey, $this->cacheConfig($effective));
+        $key = ($unresolved || (isset($parseOptions['includes']) && $states === [])) ? null
+            : $this->cacheKey('file', serialize([$source, $real, $states]), $effective);
+        if ($key !== null) {
+            $cached = Cache::read($key, $this->cacheConfig($effective));
             if ($cached instanceof RenderedCarve) {
                 return $cached;
             }
         }
-        $result = $this->renderDocument($source, $converter, $document, $warnings, $dependencies, $expander->getSuppressedWarnings());
-        if ($cacheKey !== null) {
-            Cache::write($cacheKey, $result, $this->cacheConfig($effective));
+        $result = $this->renderSource($source, $effective, $real, $tree, $dependencies);
+        if ($key !== null) {
+            Cache::write($key, $result, $this->cacheConfig($effective));
         }
 
         return $result;
     }
 
-    /**
-     * @param string $source
-     * @param array<string, mixed> $options
-     */
     public function toText(string $source, array $options = []): string
     {
-        $converter = $this->converter('text', $this->options($options));
-
-        return $converter->convert($source);
+        return $this->writeTarget('text', $source, $this->options($options));
     }
 
-    /**
-     * @param string $source
-     * @param array<string, mixed> $options
-     */
     public function toMarkdown(string $source, array $options = []): string
     {
-        $converter = $this->converter('markdown', $this->options($options));
-
-        return $converter->convert($source);
+        return $this->writeTarget('markdown', $source, $this->options($options));
     }
 
     public function toAnsi(string $source, array $options = []): string
     {
-        return $this->converter('ansi', $this->options($options))->convert($source);
+        return $this->writeTarget('ansi', $source, $this->options($options));
     }
 
-    /**
-     * @param string $path
-     * @param string $format
-     * @param array<string, mixed> $options
-     *
-     * @throws \InvalidArgumentException
-     * @throws \RuntimeException
-     */
+    public function textLength(string $source, array $options = []): int
+    {
+        $effective = $this->options($options);
+        $tree = Carve::parse($source, $this->engineOptions($effective, 'parse'));
+
+        return mb_strlen(trim(self::plainText($tree)));
+    }
+
     public function renderFileAs(string $path, string $format, array $options = []): string
     {
         if ($format === 'html') {
@@ -246,132 +175,70 @@ class CarveRenderer implements CarveRendererInterface
         if (!in_array($format, ['text', 'markdown', 'ansi'], true)) {
             throw new InvalidArgumentException('Unknown Carve render format: ' . $format);
         }
-        $real = realpath($path);
-        if ($real === false || !is_file($real) || !is_readable($real)) {
-            throw new InvalidArgumentException('Unreadable Carve file: ' . $path);
-        }
-        $source = file_get_contents($real);
-        if ($source === false) {
-            throw new RuntimeException('Unable to read Carve file: ' . $path);
-        }
-        $effective = $this->options($options);
-        if ($effective['includeRoot'] === null && $effective['includeResolver'] === null) {
-            return $this->converter($format, $effective)->convert($source);
-        }
-        [$resolver] = $this->includeResolver($effective, $real);
-        $converter = $this->converter($format, $effective);
-        $expander = new IncludeExpander($resolver, $real, source: $source, extensions: $converter->getExtensions());
+        [$source, $real] = self::readFile($path);
 
-        return $converter->render($converter->transform($converter->parse($source), $expander));
-    }
-
-    /**
-     * The configured resolver, or the filesystem one confined to `includeRoot`; the root is null for a custom resolver.
-     *
-     * @param array<string, mixed> $effective
-     * @param string $real
-     *
-     * @throws \InvalidArgumentException
-     *
-     * @return array{\MarkupCarve\Carve\Transform\IncludeResolverInterface, string|null}
-     */
-    private function includeResolver(array $effective, string $real): array
-    {
-        if ($effective['includeResolver'] !== null) {
-            $resolver = $effective['includeResolver'];
-            if (is_string($resolver) && is_subclass_of($resolver, IncludeResolverInterface::class)) {
-                $resolver = new $resolver();
-            }
-            if (!$resolver instanceof IncludeResolverInterface) {
-                throw new InvalidArgumentException('Invalid Carve includeResolver.');
-            }
-
-            return [$resolver, null];
-        }
-        $root = realpath($this->string($effective, 'includeRoot'));
-        if ($root === false || !str_starts_with($real, rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
-            throw new InvalidArgumentException('Carve source must be inside includeRoot.');
-        }
-
-        return [new FilesystemIncludeResolver($root), $root];
+        return $this->writeTarget($format, $source, $this->options($options), $real);
     }
 
     public function format(string $source, bool $alignTables = false): string
     {
-        return CarveConverter::toCarve($source, alignTables: $alignTables);
+        $options = $this->engineOptions($this->options([]), 'parse');
+        unset($options['includes']);
+
+        return Carve::format($source, $options + ['alignTables' => $alignTables]);
     }
 
-    /**
-     * @return array<array{rule: string, message: string, line: int, column: int}>
-     */
     public function lint(string $source): array
     {
-        return array_map(static fn ($finding): array => [
-            'rule' => $finding->rule,
-            'message' => $finding->message,
-            'line' => $finding->line,
-            'column' => $finding->column,
-        ], (new DocumentLinter())->lint($source));
+        $options = $this->engineOptions($this->options([]), 'parse');
+
+        return array_map(static fn (Diagnostic $d): array => self::finding($d, $source), Carve::lint($source, $options));
     }
 
-    /**
-     * @param string $path
-     * @param array<string, mixed> $options
-     *
-     * @throws \InvalidArgumentException
-     * @throws \RuntimeException
-     *
-     * @return array<array{rule: string, message: string, line: int, column: int, file: string|null}>
-     */
     public function lintFile(string $path, array $options = []): array
     {
-        $real = realpath($path);
-        if ($real === false || !is_file($real) || !is_readable($real)) {
-            throw new InvalidArgumentException('Unreadable Carve file: ' . $path);
-        }
-        $source = file_get_contents($real);
-        if ($source === false) {
-            throw new RuntimeException('Unable to read Carve file: ' . $path);
-        }
+        [$source, $real] = self::readFile($path);
         $effective = $this->options($options);
-        $resolver = null;
-        if ($effective['includeRoot'] !== null || $effective['includeResolver'] !== null) {
-            [$resolver] = $this->includeResolver($effective, $real);
+        $engine = $this->engineOptions($effective, 'parse', $real);
+        $findings = isset($engine['includes'])
+            ? array_merge(Carve::lint($source), Carve::lint($source, $engine))
+            : Carve::lint($source, $engine);
+        $unique = [];
+        foreach ($findings as $finding) {
+            $key = serialize([$finding->code, $finding->file, $finding->startOffset, $finding->endOffset]);
+            $unique[$key] = $finding;
         }
-        $extensions = array_values(array_map(
-            static fn ($spec): ExtensionInterface => (new ExtensionFactory())->create($spec),
-            $this->extensions($effective),
-        ));
 
-        return array_map(static fn ($finding): array => [
-            'rule' => $finding->rule,
-            'message' => $finding->message,
-            'line' => $finding->line,
-            'column' => $finding->column,
-            'file' => $finding->file,
-        ], (new IncludeLinter())->lint($source, ['extensions' => $extensions], $resolver, $real));
+        $root = is_string($effective['includeRoot'] ?? null) ? realpath($effective['includeRoot']) : false;
+
+        return array_map(static function (Diagnostic $d) use ($source, $real, $root): array {
+            $file = $d->file ?? $real;
+            $onDisk = $root !== false && !str_starts_with($file, '/') ? $root . '/' . $file : $file;
+            $text = $file === $real ? $source : (is_file($onDisk) ? (string)file_get_contents($onDisk) : '');
+
+            return self::finding($d, $text) + ['file' => $file];
+        }, array_values($unique));
     }
 
     public function import(string $source, string $from): ImportResult
     {
-        $converter = match ($from) {
-            'markdown' => new MarkdownToCarve(),
-            'html' => new HtmlToCarve(),
-            'djot' => new DjotToCarve(),
-            'bbcode' => new BbcodeToCarve(),
+        if ($from === 'html') {
+            $effective = $this->options([]);
+            $result = Carve::importDocument($source, ['from' => 'html', 'rawHtml' => $effective['rawHtml']]);
+
+            return new ImportResult($result->source, 'html', $result->diagnostics, $result);
+        }
+        // The 0.1 Markdown importer read GitHub Flavored Markdown; in 0.2 `markdown` is CommonMark only.
+        $format = match ($from) {
+            'markdown', 'gfm' => 'gfm',
+            'djot' => 'djot',
             default => throw new InvalidArgumentException('Unknown Carve import format: ' . $from),
         };
+        $result = Carve::importDocument($source, ['from' => $format]);
 
-        $result = $converter->convertWithFidelityReport($source);
-
-        return new ImportResult($result->value, $result->sourceFormat, $result->diagnostics, $result);
+        return new ImportResult($result->source, $from, $result->diagnostics, $result);
     }
 
-    /**
-     * @param array<string, mixed> $options
-     *
-     * @return array<string, mixed>
-     */
     public function resolveOptions(array $options = []): array
     {
         return $this->options($options);
@@ -388,155 +255,344 @@ class CarveRenderer implements CarveRendererInterface
     {
         $name = $options['preset'] ?? 'default';
         $presets = $this->config['presets'];
-        if (!is_array($presets)) {
-            throw new InvalidArgumentException('Carve presets must be an array.');
-        }
-        if (!is_string($name) || !isset($presets[$name]) || !is_array($presets[$name])) {
+        if (!is_array($presets) || !is_string($name) || !isset($presets[$name]) || !is_array($presets[$name])) {
             throw new InvalidArgumentException('Unknown Carve preset.');
         }
         unset($options['preset']);
 
-        return array_replace($this->config, $presets[$name], $options);
+        $effective = array_replace($this->config, $presets[$name], $options);
+        $allowed = ['rendererClass', 'className', 'debug'];
+        foreach (array_keys($effective) as $key) {
+            if (!array_key_exists($key, $this->config) && !in_array($key, $allowed, true)) {
+                throw new InvalidArgumentException('Unknown Carve 0.2 option: ' . $key);
+            }
+        }
+
+        return $effective;
+    }
+
+    /**
+     * @param array<string, mixed> $effective
+     * @param string|null $file
+     * @param string $stage
+     *
+     * @throws \InvalidArgumentException
+     *
+     * @return array<string, mixed>
+     */
+    private function engineOptions(array $effective, string $stage, ?string $file = null): array
+    {
+        $extensions = [];
+        if (!is_array($effective['extensions'])) {
+            throw new InvalidArgumentException('Invalid Carve extensions.');
+        }
+        $factory = new ExtensionFactory();
+        foreach ($effective['extensions'] as $extension) {
+            if (!is_string($extension) && !is_array($extension) && !$extension instanceof ExtensionDefinition && !$extension instanceof ExtensionProvider) {
+                throw new InvalidArgumentException('Invalid Carve extension entry.');
+            }
+            if ($extension === 'frontmatter' || $extension === 'admonition') {
+                continue;
+            }
+            if ($extension === 'mentions') {
+                throw new InvalidArgumentException('Configure the Carve social option for mentions.');
+            }
+            array_push($extensions, ...$factory->create($extension));
+        }
+        $out = ['extensions' => $extensions];
+        if ($stage === 'render') {
+            foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'softBreak', 'social', 'headingIds', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
+                $out[$key] = $effective[$key];
+            }
+        }
+        $resolver = $effective['includeResolver'] ?? $effective['includes'];
+        if ($file !== null && $resolver === null && $effective['includeRoot'] !== null) {
+            if (!is_string($effective['includeRoot'])) {
+                throw new InvalidArgumentException('Invalid Carve includeRoot.');
+            }
+            $root = realpath($effective['includeRoot']);
+            if ($root === false || !str_starts_with($file, rtrim($root, '/') . '/')) {
+                throw new InvalidArgumentException('Carve source must be inside includeRoot.');
+            }
+            $resolver = FileResolver::forRoot($root);
+        }
+        if ($resolver !== null) {
+            if (!$resolver instanceof IncludeResolver && !is_callable($resolver)) {
+                throw new InvalidArgumentException('Invalid Carve includeResolver.');
+            }
+            $out['includes'] = ['resolver' => $resolver, 'file' => $file];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param string $source
+     * @param array<string, mixed> $effective
+     * @param \MarkupCarve\Carve\Node|null $tree
+     * @param string|null $file
+     * @param array<array<string, mixed>> $dependencies
+     */
+    private function renderSource(string $source, array $effective, ?string $file = null, ?Node $tree = null, array $dependencies = []): RenderedCarve
+    {
+        $options = $this->engineOptions($effective, 'render', $file);
+        [$options['extensions'], $transforms] = self::orderedExtensions(is_array($options['extensions']) ? $options['extensions'] : []);
+        $markerName = 'data-carve-host-toc-' . bin2hex(random_bytes(8));
+        $renderedTree = null;
+        array_push($transforms, new DocumentTransform('cake.metadata', static function (Node $view) use (&$renderedTree, $markerName): Node {
+            $index = 0;
+            self::markHeadings($view, $index, $markerName);
+            $renderedTree = $view;
+
+            return $view;
+        }));
+        $rendered = Carve::renderWithDocumentTransforms($source, $transforms, $options);
+        $tree ??= Carve::parse($source, ['headingIds' => $effective['headingIds']] + $this->engineOptions($effective, 'parse', $file));
+        $frontmatter = null;
+        $toc = [];
+        foreach ($tree->children ?? [] as $node) {
+            if ($node->type === 'frontmatter') {
+                $frontmatter = ['format' => is_string($node->f['format'] ?? null) ? $node->f['format'] : '', 'content' => is_string($node->f['value'] ?? null) ? $node->f['value'] : ''];
+            }
+        }
+        self::headings($renderedTree ?? $tree, $toc);
+        $shapes = self::markedHeadingShapes($rendered->html, $markerName, $effective['sections'] === true);
+        foreach ($toc as $index => &$heading) {
+            if (isset($shapes[$index])) {
+                $heading['level'] = $shapes[$index]['level'];
+                $heading['id'] = $shapes[$index]['id'];
+            }
+        }
+        unset($heading);
+        $html = self::stripHeadingMarkers($rendered->html, $markerName);
+        if ($file !== null && $dependencies === []) {
+            $dependencies = $this->dependencies($tree, $this->engineOptions($effective, 'parse', $file));
+        }
+        $warnings = array_map(static fn (Diagnostic $d): array => self::finding($d, $source), $rendered->diagnostics);
+
+        return new RenderedCarve($source, $html, $toc, $frontmatter, $warnings, $dependencies);
+    }
+
+    /**
+     * @param array<mixed> $extensions
+     *
+     * @return array{array<\MarkupCarve\Carve\Extension\ExtensionDefinition>, array<\MarkupCarve\Carve\Extension\DocumentTransform>}
+     */
+    private static function orderedExtensions(array $extensions): array
+    {
+        $definitions = [];
+        $transforms = [];
+        foreach ($extensions as $extension) {
+            $entries = $extension instanceof ExtensionProvider ? $extension->definitions() : [$extension];
+            foreach ($entries as $entry) {
+                if (!$entry instanceof ExtensionDefinition) {
+                    continue;
+                }
+                if ($entry->documentTransform !== null) {
+                    $transforms[] = new DocumentTransform($entry->name, $entry->documentTransform);
+                    $entry = new ExtensionDefinition($entry->name, $entry->version, $entry->slots, $entry->matcher, $entry->parent, $entry->transform, $entry->renderer, $entry->buildTimeRenderer, $entry->semanticKeys, $entry->quotes);
+                }
+                $definitions[] = $entry;
+            }
+            if ($extension instanceof Bundle) {
+                array_push($transforms, ...$extension->transforms());
+            }
+        }
+
+        return [$definitions, $transforms];
     }
 
     /**
      * @param string $target
-     * @param array<string, mixed> $options
+     * @param string $source
+     * @param array<string, mixed> $effective
+     * @param string|null $file
      *
      * @throws \InvalidArgumentException
+     * @throws \RuntimeException
      */
-    private function converter(string $target, array $options): CarveConverter
+    private function writeTarget(string $target, string $source, array $effective, ?string $file = null): string
     {
-        $key = hash('sha256', serialize($this->normalize($options)));
-        if (isset($this->converters[$target]) && $this->converterKeys[$target] === $key) {
-            return $this->converters[$target];
+        $registry = Carve::writers();
+        if (!is_array($effective['writers'])) {
+            throw new InvalidArgumentException('Invalid Carve writers.');
         }
-        $profile = $options['profile'];
-        if (is_string($profile)) {
-            if (!in_array($profile, ['full', 'article', 'comment', 'minimal'], true)) {
-                throw new InvalidArgumentException('Unknown Carve profile: ' . $profile);
+        foreach ($effective['writers'] as $writer) {
+            if (!$writer instanceof OutputWriter) {
+                throw new InvalidArgumentException('Invalid Carve output writer.');
             }
-            $profile = Profile::{$profile}();
+            $registry->register($writer);
         }
-        if ($profile !== null && !$profile instanceof Profile) {
-            throw new InvalidArgumentException('Invalid Carve profile.');
+        if ($target === 'text' && !$registry->has('text')) {
+            $target = 'plain';
         }
-        if ($profile !== null) {
-            $profile = (clone $profile)->onDisallowed($this->string($options, 'onDisallowed'));
+        if (!$registry->has($target)) {
+            throw new RuntimeException('Carve 0.2 ' . $target . ' writer not available yet.');
         }
-        $safeMode = $options['safeMode'] === 'strict' ? SafeMode::strict() : $options['safeMode'];
-        if (!is_bool($safeMode) && !$safeMode instanceof SafeMode) {
-            throw new InvalidArgumentException('Invalid Carve safeMode.');
-        }
-        $rawHtml = $options['rawHtml'];
-        if ($rawHtml !== null && !in_array($rawHtml, [SafeMode::RAW_HTML_STRIP, SafeMode::RAW_HTML_ESCAPE, SafeMode::RAW_HTML_ALLOW], true)) {
-            throw new InvalidArgumentException('Invalid Carve rawHtml.');
-        }
-        // Only plain safe mode is tunable; 'strict' and an explicit SafeMode keep their own raw handling.
-        if ($rawHtml !== null && $options['safeMode'] === true) {
-            $safeMode = (new SafeMode())->setRawHtmlMode($rawHtml);
-        }
-        $renderer = match ($target) {
-            'text' => new PlainTextRenderer(),
-            'markdown' => new MarkdownRenderer(),
-            'ansi' => new AnsiRenderer(),
-            default => null,
-        };
-        $converter = new CarveConverter(
-            xhtml: $this->bool($options, 'xhtml'),
-            warnings: $this->bool($options, 'warnings'),
-            strict: $this->bool($options, 'strict'),
-            safeMode: $safeMode,
-            profile: $profile,
-            softBreakMode: $options['softBreakMode'] === null ? null : SoftBreakMode::from($this->string($options, 'softBreakMode')),
-            smartTypography: $this->smartTypography($options),
-            mode: $this->string($options, 'mode'),
-            symbols: $this->stringMap($options, 'symbols'),
-            renderer: $renderer,
-            sourceLines: $this->bool($options, 'sourceLines'),
-            roundTripMode: $this->bool($options, 'roundTripMode'),
-            renderers: $this->renderers($options),
-            labels: $this->stringMap($options, 'labels'),
-        );
-        $hasToc = false;
-        foreach ($this->extensions($options) as $spec) {
-            $extension = (new ExtensionFactory())->create($spec);
-            $hasToc = $hasToc || $extension instanceof TableOfContentsExtension;
-            $converter->addExtension($extension);
-        }
-        if ($target === 'html' && !$hasToc) {
-            $converter->addExtension(new TableOfContentsExtension());
-        }
-        $this->converters[$target] = $converter;
-        $this->converterKeys[$target] = $key;
+        $tree = Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
 
-        return $converter;
+        $writerOptions = $target === 'text'
+            ? $this->engineOptions($effective, 'render', $file)
+            : [
+                'smartTypography' => $effective['smartTypography'],
+                'strictLosses' => $effective['strictLosses'],
+                'urlPolicy' => $effective['urlPolicy'],
+            ];
+
+        return Carve::writeTo($target, $tree, $writerOptions, $registry);
     }
 
     /**
-     * @param string $source
+     * @param \MarkupCarve\Carve\Node $tree
      * @param array<string, mixed> $options
-     */
-    private function renderSource(string $source, array $options): RenderedCarve
-    {
-        $converter = $this->converter('html', $options);
-        $document = $converter->parse($source);
-        $warnings = $options['warnings'] ? array_map(self::warning(...), $converter->getWarnings()) : [];
-
-        return $this->renderDocument($source, $converter, $document, $warnings);
-    }
-
-    /**
-     * @param string $source
-     * @param \MarkupCarve\Carve\CarveConverter $converter
-     * @param \MarkupCarve\Carve\Node\Document $document
-     * @param array<array{rule: string|null, message: string, line: int, column: int}> $warnings
-     * @param array<array<string, mixed>> $dependencies
-     * @param int $suppressed
-     */
-    private function renderDocument(
-        string $source,
-        CarveConverter $converter,
-        Document $document,
-        array $warnings = [],
-        array $dependencies = [],
-        int $suppressed = 0,
-    ): RenderedCarve {
-        $html = $converter->render($document);
-        // The HTML API returns a fragment without the final LF (spec 19, carve#3756).
-        if (str_ends_with($html, "\n")) {
-            $html = substr($html, 0, -1);
-        }
-        $toc = [];
-        $frontmatter = null;
-        foreach ($converter->getExtensions() as $extension) {
-            if ($extension instanceof TableOfContentsExtension) {
-                $toc = $extension->getToc();
-            }
-            if ($extension instanceof FrontmatterExtension && $extension->hasFrontmatter()) {
-                $frontmatter = ['format' => (string)$extension->getFormat(), 'content' => (string)$extension->getContent()];
-            }
-        }
-
-        return new RenderedCarve($source, $html, $toc, $frontmatter, $warnings, $dependencies, $suppressed);
-    }
-
-    /**
-     * @return array{rule: string|null, message: string, line: int, column: int}
-     */
-    private static function warning(ParseWarning $warning): array
-    {
-        return [
-            'rule' => $warning->getRule(),
-            'message' => $warning->getMessage(),
-            'line' => $warning->getLine(),
-            'column' => $warning->getColumn(),
-        ];
-    }
-
-    /**
-     * Cache is skipped for mutable extensions and renderers unless the application supplies a cache version.
      *
+     * @return array<array<string, mixed>>
+     */
+    private function dependencies(Node $tree, array $options): array
+    {
+        return array_map(static fn (array $d): array => [
+            'path' => $d['path'],
+            'resolved' => $d['read'],
+            'id' => $d['file'],
+        ], Carve::includeDependencies($tree, $options));
+    }
+
+    /**
+     * @param \MarkupCarve\Carve\Node $node
+     * @param array<array<string, mixed>> $toc
+     */
+    private static function headings(Node $node, array &$toc): void
+    {
+        if ($node->type === 'heading') {
+            $attrs = $node->f['attrs'] ?? null;
+            $toc[] = ['level' => $node->f['level'] ?? 1, 'id' => ($attrs instanceof Attrs ? $attrs->id : null) ?? ($node->f['generatedId'] ?? null), 'text' => trim(self::tocText($node))];
+        }
+        foreach ($node->children ?? [] as $child) {
+            self::headings($child, $toc);
+        }
+    }
+
+    private static function tocText(Node $node): string
+    {
+        $data = $node->f['data'] ?? null;
+        if (is_array($data) && ($data['carve.headingPermalinks'] ?? null) === 'chrome') {
+            return '';
+        }
+        $text = in_array($node->type, ['text', 'code', 'code_block'], true) && is_string($node->f['value'] ?? null) ? $node->f['value'] : '';
+        if ($node->type === 'image' && is_string($node->f['alt'] ?? null)) {
+            $text = $node->f['alt'];
+        }
+        foreach ($node->children ?? [] as $child) {
+            $text .= self::tocText($child);
+        }
+
+        return $text;
+    }
+
+    private static function markHeadings(Node $node, int &$index, string $markerName): void
+    {
+        if ($node->type === 'heading') {
+            $attrs = $node->f['attrs'] ?? null;
+            $attrs = $attrs instanceof Attrs ? clone $attrs : new Attrs();
+            $attrs->setKey($markerName, (string)$index++);
+            $node->f['attrs'] = $attrs;
+        }
+        foreach ($node->children ?? [] as $child) {
+            self::markHeadings($child, $index, $markerName);
+        }
+    }
+
+    /**
+     * @return array<int, array{level: int, id: string|null}>
+     */
+    private static function markedHeadingShapes(string $html, string $markerName, bool $sectionsEnabled): array
+    {
+        preg_match_all('/<\/?section\b[^>]*>|<h[1-6]\b[^>]*>/i', $html, $matches);
+        $sections = [];
+        $shapes = [];
+        foreach ($matches[0] as $tag) {
+            if (str_starts_with($tag, '</section')) {
+                array_pop($sections);
+            } elseif (str_starts_with($tag, '<section')) {
+                $sections[] = self::tagId($tag);
+            } elseif (preg_match('/^<h([1-6])\b/i', $tag, $level) === 1 && preg_match('/\s' . preg_quote($markerName, '/') . '="(\d+)"/', $tag, $marker) === 1) {
+                $id = self::tagId($tag);
+                if ($id === null && $sectionsEnabled && $sections !== []) {
+                    $id = $sections[array_key_last($sections)];
+                }
+                $shapes[(int)$marker[1]] = ['level' => (int)$level[1], 'id' => $id];
+            }
+        }
+
+        return $shapes;
+    }
+
+    private static function stripHeadingMarkers(string $html, string $markerName): string
+    {
+        return preg_replace_callback('/<h[1-6]\b[^>]*>/i', static fn (array $match): string => preg_replace('/\s' . preg_quote($markerName, '/') . '="\d+"/', '', $match[0]) ?? $match[0], $html) ?? $html;
+    }
+
+    private static function tagId(string $tag): ?string
+    {
+        return preg_match('/(?:^|\s)id="([^"]*)"/i', $tag, $match) === 1
+            ? html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8') : null;
+    }
+
+    public static function plainText(Node $node): string
+    {
+        $text = in_array($node->type, ['text', 'code', 'code_block'], true) && is_string($node->f['value'] ?? null)
+            ? $node->f['value'] : '';
+        if ($node->type === 'image' && is_string($node->f['alt'] ?? null)) {
+            $text = $node->f['alt'];
+        }
+        if (in_array($node->type, ['soft_break', 'hard_break'], true)) {
+            return "\n";
+        }
+        foreach ($node->children ?? [] as $index => $child) {
+            if ($index > 0 && in_array($node->type, ['document', 'list', 'block_quote'], true)) {
+                $text .= "\n";
+            }
+            $text .= self::plainText($child);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @return array{rule: string, message: string, line: int, column: int}
+     */
+    private static function finding(Diagnostic $diagnostic, string $source): array
+    {
+        $offset = max(0, $diagnostic->startOffset);
+        $prefix = substr($source, 0, $offset);
+        $line = substr_count($prefix, "\n") + 1;
+        $previous = strrpos($prefix, "\n");
+        $column = mb_strlen(substr($prefix, $previous === false ? 0 : $previous + 1)) + 1;
+
+        return ['rule' => $diagnostic->code, 'message' => $diagnostic->message, 'line' => $line, 'column' => $column];
+    }
+
+    /**
+     * @throws \InvalidArgumentException
+     * @throws \RuntimeException
+     *
+     * @return array{string, string}
+     */
+    private static function readFile(string $path): array
+    {
+        $real = realpath($path);
+        if ($real === false || !is_file($real) || !is_readable($real)) {
+            throw new InvalidArgumentException('Unreadable Carve file: ' . $path);
+        }
+        $source = file_get_contents($real);
+        if ($source === false) {
+            throw new RuntimeException('Unable to read Carve file: ' . $path);
+        }
+
+        return [$source, $real];
+    }
+
+    /**
      * @param string $kind
      * @param string $source
      * @param array<string, mixed> $options
@@ -545,198 +601,39 @@ class CarveRenderer implements CarveRendererInterface
      */
     private function cacheKey(string $kind, string $source, array $options): ?string
     {
-        if (!is_array($options['cache'])) {
-            return null;
-        }
-        $cache = $options['cache'] + ['config' => 'default', 'prefix' => 'carve_', 'version' => null];
-        if ($cache['version'] !== null && !is_string($cache['version'])) {
-            throw new InvalidArgumentException('Invalid Carve cache version.');
-        }
-        if ($cache['version'] === null) {
-            foreach ($this->extensions($options) as $extension) {
-                if ($extension instanceof ExtensionInterface || $this->containsClosure($extension)) {
-                    return null;
-                }
-            }
-            if ($this->renderers($options) !== []) {
-                return null;
-            }
-        }
-        $options['cache'] = false;
-        if ($cache['version'] !== null) {
-            try {
-                $options['extensions'] = $this->versionedCacheValue($this->extensions($options));
-                $options['renderers'] = $this->versionedCacheValue($this->renderers($options));
-            } catch (UnexpectedValueException) {
-                return null;
-            }
-        }
-
-        return $this->string($cache, 'prefix') . hash('sha256', serialize([CarveConverter::LIB_VERSION, $kind, $source, $cache['version'], $this->normalize($options)]));
-    }
-
-    /**
-     * @param mixed $value
-     *
-     * @throws \UnexpectedValueException When a closure's captured values cannot be serialized.
-     *
-     * @return mixed
-     */
-    private function versionedCacheValue(mixed $value): mixed
-    {
-        if ($value instanceof Closure) {
-            // Definition site plus captured values: stable across requests, distinct per closure.
-            $function = new ReflectionFunction($value);
-            try {
-                $captured = serialize([$function->getClosureScopeClass()?->getName(), $function->getStaticVariables()]);
-            } catch (Throwable $exception) {
-                throw new UnexpectedValueException('Closure state cannot be keyed.', 0, $exception);
-            }
-
-            return Closure::class . '@' . $function->getFileName() . ':' . $function->getStartLine() . '-' . $function->getEndLine() . '#' . hash('sha256', $captured);
-        }
-        if (is_array($value)) {
-            return array_map($this->versionedCacheValue(...), $value);
-        }
-
-        return $value;
-    }
-
-    /**
-     * @param array<string, mixed> $options
-     */
-    private function cacheConfig(array $options): string
-    {
         $cache = $options['cache'];
         if (!is_array($cache)) {
-            return 'default';
+            return null;
         }
-
-        return isset($cache['config']) && is_string($cache['config']) ? $cache['config'] : 'default';
-    }
-
-    /**
-     * @param array<string, mixed> $options
-     * @param string $key
-     *
-     * @throws \InvalidArgumentException
-     */
-    private function string(array $options, string $key): string
-    {
-        if (!isset($options[$key]) || !is_string($options[$key])) {
-            throw new InvalidArgumentException('Invalid Carve option: ' . $key);
-        }
-
-        return $options[$key];
-    }
-
-    /**
-     * @param array<string, mixed> $options
-     * @param string $key
-     *
-     * @throws \InvalidArgumentException
-     */
-    private function bool(array $options, string $key): bool
-    {
-        if (!isset($options[$key]) || !is_bool($options[$key])) {
-            throw new InvalidArgumentException('Invalid Carve option: ' . $key);
-        }
-
-        return $options[$key];
-    }
-
-    /**
-     * @param array<string, mixed> $options
-     *
-     * @throws \InvalidArgumentException
-     */
-    private function smartTypography(array $options): SmartTypographyMode|bool|null
-    {
-        $value = $options['smartTypography'] ?? null;
-        if ($value === null || is_bool($value) || $value instanceof SmartTypographyMode) {
-            return $value;
-        }
-
-        throw new InvalidArgumentException('Invalid Carve option: smartTypography');
-    }
-
-    /**
-     * @param array<string, mixed> $options
-     * @param string $key
-     *
-     * @throws \InvalidArgumentException
-     *
-     * @return array<string, string>
-     */
-    private function stringMap(array $options, string $key): array
-    {
-        $map = $options[$key] ?? null;
-        if (!is_array($map)) {
-            throw new InvalidArgumentException('Invalid Carve ' . $key . '.');
-        }
-        foreach ($map as $name => $value) {
-            if (!is_string($name) || !is_string($value)) {
-                throw new InvalidArgumentException('Invalid Carve ' . $key . '.');
+        foreach (['extensions', 'writers', 'includes', 'includeResolver'] as $name) {
+            if ($options[$name] !== null && $options[$name] !== [] && !isset($cache['version'])) {
+                return null;
             }
         }
+        $keyOptions = $options;
+        unset($keyOptions['cache'], $keyOptions['presets']);
+        if (self::containsObject($keyOptions)) {
+            return null;
+        }
+        $prefix = $cache['prefix'] ?? 'carve_';
+        if (!is_string($prefix)) {
+            throw new InvalidArgumentException('Invalid Carve cache prefix.');
+        }
 
-        return $map;
+        return $prefix . hash('sha256', serialize([
+            Carve::class, InstalledVersions::getReference('markup-carve/carve-php'),
+            $kind, $source, $cache['version'] ?? null, $keyOptions,
+        ]));
     }
 
-    /**
-     * @param array<string, mixed> $options
-     *
-     * @throws \InvalidArgumentException
-     *
-     * @return array<string, \Closure(string): string>
-     */
-    private function renderers(array $options): array
+    private static function containsObject(mixed $value): bool
     {
-        $renderers = $options['renderers'] ?? null;
-        if (!is_array($renderers)) {
-            throw new InvalidArgumentException('Invalid Carve renderers.');
-        }
-        $valid = [];
-        foreach ($renderers as $name => $renderer) {
-            if (!is_string($name) || !$renderer instanceof Closure) {
-                throw new InvalidArgumentException('Invalid Carve renderers.');
-            }
-            $valid[$name] = $renderer;
-        }
-
-        return $valid;
-    }
-
-    /**
-     * @param array<string, mixed> $options
-     *
-     * @throws \InvalidArgumentException
-     *
-     * @return array<\MarkupCarve\Carve\Extension\ExtensionInterface|array<mixed, mixed>|string>
-     */
-    private function extensions(array $options): array
-    {
-        $extensions = $options['extensions'] ?? null;
-        if (!is_array($extensions)) {
-            throw new InvalidArgumentException('Invalid Carve extensions.');
-        }
-        foreach ($extensions as $extension) {
-            if (!is_string($extension) && !is_array($extension) && !$extension instanceof ExtensionInterface) {
-                throw new InvalidArgumentException('Invalid Carve extension.');
-            }
-        }
-
-        return $extensions;
-    }
-
-    private function containsClosure(mixed $value): bool
-    {
-        if ($value instanceof Closure) {
+        if (is_object($value)) {
             return true;
         }
         if (is_array($value)) {
             foreach ($value as $item) {
-                if ($this->containsClosure($item)) {
+                if (self::containsObject($item)) {
                     return true;
                 }
             }
@@ -746,33 +643,17 @@ class CarveRenderer implements CarveRendererInterface
     }
 
     /**
-     * @param array<mixed, mixed> $options
+     * @param array<string, mixed> $options
      *
-     * @return array<mixed, mixed>
+     * @throws \InvalidArgumentException
      */
-    private function normalize(array $options): array
+    private function cacheConfig(array $options): string
     {
-        ksort($options);
-        foreach ($options as &$value) {
-            if (is_array($value)) {
-                $value = $this->normalize($value);
-            } elseif ($value instanceof UnitEnum) {
-                $value = $value::class . ':' . $value->name;
-            } elseif ($value instanceof Closure) {
-                $value = Closure::class . '#' . spl_object_id($value);
-            } elseif (is_object($value)) {
-                if ($value instanceof ExtensionInterface || $value instanceof Profile || $value instanceof SafeMode) {
-                    try {
-                        $value = serialize($value);
-                    } catch (Throwable) {
-                        $value = $value::class . '#' . spl_object_id($value);
-                    }
-                } else {
-                    $value = $value::class;
-                }
-            }
+        $config = is_array($options['cache']) ? ($options['cache']['config'] ?? 'default') : 'default';
+        if (!is_string($config)) {
+            throw new InvalidArgumentException('Invalid Carve cache config.');
         }
 
-        return $options;
+        return $config;
     }
 }

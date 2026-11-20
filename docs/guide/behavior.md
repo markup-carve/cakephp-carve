@@ -1,6 +1,6 @@
 # Store rendered content
 
-The Carve behavior generates HTML, optional plain text, and optional TOC fields when a CakePHP entity is saved.
+The Carve behavior generates HTML and optional text and TOC fields when a CakePHP entity is saved. Text output requires a registered 0.2 text writer; without one, saving a field configured with `text` raises a clear availability error.
 
 ## Add columns
 

@@ -2,10 +2,11 @@
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
-         colors="true">
+         colors="true"
+         defaultTestSuite="Carve">
     <testsuites>
-        <testsuite name="CakeCarve">
-            <directory>tests/TestCase</directory>
+        <testsuite name="Carve">
+            <directory>tests</directory>
         </testsuite>
     </testsuites>
     <source>

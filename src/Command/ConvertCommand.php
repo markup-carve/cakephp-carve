@@ -17,7 +17,7 @@ class ConvertCommand extends Command
     protected function buildOptionParser(ConsoleOptionParser $parser): ConsoleOptionParser
     {
         return $parser->addArgument('file', ['required' => true])
-            ->addOption('from', ['help' => 'markdown, html, djot, or bbcode', 'required' => true])
+            ->addOption('from', ['help' => 'html, markdown (GitHub Flavored), gfm or djot', 'required' => true])
             ->addOption('output', ['help' => 'Output file'])
             ->addOption('check-loss', ['boolean' => true]);
     }
@@ -34,7 +34,7 @@ class ConvertCommand extends Command
             if ($args->getOption('check-loss')) {
                 $lossy = false;
                 foreach ($result->diagnostics as $diagnostic) {
-                    if (in_array($diagnostic->fidelity, ['degraded', 'dropped'], true)) {
+                    if (in_array($diagnostic->channel, ['import-loss', 'render-loss'], true)) {
                         $io->err($diagnostic->message);
                         $lossy = true;
                     }

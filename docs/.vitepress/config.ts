@@ -1,5 +1,4 @@
 import { defineConfig } from 'vitepress'
-import { carveMarkdown } from 'carve-grammars/shiki'
 
 export default defineConfig({
   title: 'CakePHP Carve',
@@ -14,7 +13,6 @@ export default defineConfig({
   ],
 
   markdown: {
-    ...carveMarkdown(),
   },
 
   themeConfig: {
