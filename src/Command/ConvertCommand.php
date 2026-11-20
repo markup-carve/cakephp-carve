@@ -17,7 +17,7 @@ class ConvertCommand extends Command
     protected function buildOptionParser(ConsoleOptionParser $parser): ConsoleOptionParser
     {
         return $parser->addArgument('file', ['required' => true])
-            ->addOption('from', ['help' => 'html', 'required' => true])
+            ->addOption('from', ['help' => 'html, markdown (GitHub Flavored), gfm or djot', 'required' => true])
             ->addOption('output', ['help' => 'Output file'])
             ->addOption('check-loss', ['boolean' => true]);
     }

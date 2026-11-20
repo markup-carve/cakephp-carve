@@ -172,10 +172,22 @@ class CarvePortTest extends TestCase
         self::assertNotEmpty((new CarveRenderer())->import('<script>x</script>', 'html')->losses());
     }
 
+    public function testMarkdownImportReadsGitHubFlavoredMarkdown(): void
+    {
+        $renderer = new CarveRenderer();
+        $markdown = "| a | b |\n|---|--:|\n| 1 | 2 |\n\n- [x] done\n";
+        foreach (['markdown', 'gfm'] as $from) {
+            $result = $renderer->import($markdown, $from);
+            self::assertSame("|= a |={>} b |\n| 1 | 2 |\n\n- [x] done\n", $result->value);
+            self::assertSame($from, $result->sourceFormat);
+        }
+        self::assertSame("/hi/\n", $renderer->import('_hi_', 'djot')->value);
+    }
+
     public function testRemovedImportFormatsAreRejected(): void
     {
         $renderer = new CarveRenderer();
-        foreach (['markdown', 'djot', 'bbcode'] as $from) {
+        foreach (['bbcode', 'rtf'] as $from) {
             try {
                 $renderer->import('text', $from);
                 self::fail('Removed importer unexpectedly accepted ' . $from);

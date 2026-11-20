@@ -222,8 +222,15 @@ class CarveRenderer implements CarveRendererInterface
 
             return new ImportResult($result->source, 'html', $result->diagnostics, $result);
         }
+        // The 0.1 Markdown importer read GitHub Flavored Markdown; in 0.2 `markdown` is CommonMark only.
+        $format = match ($from) {
+            'markdown', 'gfm' => 'gfm',
+            'djot' => 'djot',
+            default => throw new InvalidArgumentException('Unknown Carve import format: ' . $from),
+        };
+        $result = Carve::importDocument($source, ['from' => $format]);
 
-        throw new InvalidArgumentException('Unknown Carve import format: ' . $from);
+        return new ImportResult($result->source, $from, $result->diagnostics, $result);
     }
 
     public function resolveOptions(array $options = []): array
