@@ -89,6 +89,8 @@ final class ExtensionConfigTest extends TestCase
         self::assertSame(1, $calls);
         self::assertSame('1 Hello', $result->toc()[0]['text']);
         self::assertStringNotContainsString('data-carve-host-toc', $result->html());
+        $raw = (new CarveRenderer(['rawHtml' => true]))->render("`<div data-carve-host-toc=\"42\">x</div>`{=html}\n");
+        self::assertStringContainsString('data-carve-host-toc="42"', $raw->html());
     }
 
     public function testEngineRenderOptionsAndImporters(): void

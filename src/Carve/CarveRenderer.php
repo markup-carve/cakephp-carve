@@ -336,10 +336,11 @@ class CarveRenderer implements CarveRendererInterface
     {
         $options = $this->engineOptions($effective, 'render', $file);
         [$options['extensions'], $transforms] = self::orderedExtensions(is_array($options['extensions']) ? $options['extensions'] : []);
+        $markerName = 'data-carve-host-toc-' . bin2hex(random_bytes(8));
         $renderedTree = null;
-        array_push($transforms, new DocumentTransform('cake.metadata', static function (Node $view) use (&$renderedTree): Node {
+        array_push($transforms, new DocumentTransform('cake.metadata', static function (Node $view) use (&$renderedTree, $markerName): Node {
             $index = 0;
-            self::markHeadings($view, $index);
+            self::markHeadings($view, $index, $markerName);
             $renderedTree = $view;
 
             return $view;
@@ -354,7 +355,7 @@ class CarveRenderer implements CarveRendererInterface
             }
         }
         self::headings($renderedTree ?? $tree, $toc);
-        $shapes = self::markedHeadingShapes($rendered->html);
+        $shapes = self::markedHeadingShapes($rendered->html, $markerName);
         foreach ($toc as $index => &$heading) {
             if (isset($shapes[$index])) {
                 $heading['level'] = $shapes[$index]['level'];
@@ -362,7 +363,7 @@ class CarveRenderer implements CarveRendererInterface
             }
         }
         unset($heading);
-        $html = preg_replace('/\sdata-carve-host-toc="\d+"/', '', $rendered->html) ?? $rendered->html;
+        $html = self::stripHeadingMarkers($rendered->html, $markerName);
         if ($file !== null && $dependencies === []) {
             $dependencies = $this->dependencies($tree, $this->engineOptions($effective, 'parse', $file));
         }
@@ -487,23 +488,23 @@ class CarveRenderer implements CarveRendererInterface
         return $text;
     }
 
-    private static function markHeadings(Node $node, int &$index): void
+    private static function markHeadings(Node $node, int &$index, string $markerName): void
     {
         if ($node->type === 'heading') {
             $attrs = $node->f['attrs'] ?? null;
             $attrs = $attrs instanceof Attrs ? clone $attrs : new Attrs();
-            $attrs->setKey('data-carve-host-toc', (string)$index++);
+            $attrs->setKey($markerName, (string)$index++);
             $node->f['attrs'] = $attrs;
         }
         foreach ($node->children ?? [] as $child) {
-            self::markHeadings($child, $index);
+            self::markHeadings($child, $index, $markerName);
         }
     }
 
     /**
      * @return array<int, array{level: int, id: string|null}>
      */
-    private static function markedHeadingShapes(string $html): array
+    private static function markedHeadingShapes(string $html, string $markerName): array
     {
         preg_match_all('/<\/?section\b[^>]*>|<h[1-6]\b[^>]*>/i', $html, $matches);
         $sections = [];
@@ -513,7 +514,7 @@ class CarveRenderer implements CarveRendererInterface
                 array_pop($sections);
             } elseif (str_starts_with($tag, '<section')) {
                 $sections[] = self::tagId($tag);
-            } elseif (preg_match('/^<h([1-6])\b/i', $tag, $level) === 1 && preg_match('/\sdata-carve-host-toc="(\d+)"/', $tag, $marker) === 1) {
+            } elseif (preg_match('/^<h([1-6])\b/i', $tag, $level) === 1 && preg_match('/\s' . preg_quote($markerName, '/') . '="(\d+)"/', $tag, $marker) === 1) {
                 $id = self::tagId($tag);
                 if ($id === null) {
                     for ($i = count($sections) - 1; $i >= 0; --$i) {
@@ -529,6 +530,11 @@ class CarveRenderer implements CarveRendererInterface
         }
 
         return $shapes;
+    }
+
+    private static function stripHeadingMarkers(string $html, string $markerName): string
+    {
+        return preg_replace_callback('/<h[1-6]\b[^>]*>/i', static fn (array $match): string => preg_replace('/\s' . preg_quote($markerName, '/') . '="\d+"/', '', $match[0]) ?? $match[0], $html) ?? $html;
     }
 
     private static function tagId(string $tag): ?string
