@@ -37,6 +37,11 @@ final class ExtensionConfigTest extends TestCase
         self::assertNotSame('', (new CarveRenderer(['extensions' => [$entry]]))->toHtml('hello'));
     }
 
+    public function testHeadingLevelsDefaultsToOneLevel(): void
+    {
+        self::assertStringContainsString('<h2>Title</h2>', (new CarveRenderer(['extensions' => ['heading_levels']]))->toHtml("# Title\n"));
+    }
+
     public function testExternalLinksNofollowOption(): void
     {
         $entry = ['type' => 'external_links', 'nofollow' => true];
@@ -73,5 +78,7 @@ final class ExtensionConfigTest extends TestCase
             [['level' => 2, 'id' => 'my-title', 'text' => 'My Title']],
             $renderer->render("# My Title\n")->toc(),
         );
+        $custom = new CarveRenderer(['extensions' => [['type' => 'heading_permalinks', 'css_class' => 'anchor-link']]]);
+        self::assertSame('Hello', $custom->render("# Hello\n")->toc()[0]['text']);
     }
 }

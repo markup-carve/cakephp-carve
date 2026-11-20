@@ -6,8 +6,6 @@ namespace MarkupCarve\CakeCarve\Carve;
 
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
-use DOMDocument;
-use DOMElement;
 use InvalidArgumentException;
 use MarkupCarve\Carve\Carve;
 use MarkupCarve\Carve\Diagnostics\Diagnostic;
@@ -350,7 +348,13 @@ class CarveRenderer implements CarveRendererInterface
                 $frontmatter = ['format' => is_string($node->f['format'] ?? null) ? $node->f['format'] : '', 'content' => is_string($node->f['value'] ?? null) ? $node->f['value'] : ''];
             }
         }
-        $toc = self::renderedHeadings($rendered->html);
+        self::headings($tree, $toc);
+        foreach (self::renderedHeadingShapes($rendered->html) as $index => $shape) {
+            if (isset($toc[$index])) {
+                $toc[$index]['level'] = $shape['level'];
+                $toc[$index]['id'] = $shape['id'];
+            }
+        }
         if ($file !== null && $dependencies === []) {
             $dependencies = $this->dependencies($tree, $this->engineOptions($effective, 'parse', $file));
         }
@@ -415,35 +419,57 @@ class CarveRenderer implements CarveRendererInterface
     }
 
     /**
-     * @return array<array{level: int, id: string|null, text: string}>
+     * @param \MarkupCarve\Carve\Node $node
+     * @param array<array<string, mixed>> $toc
      */
-    private static function renderedHeadings(string $html): array
+    private static function headings(Node $node, array &$toc): void
     {
-        $document = new DOMDocument();
-        $document->loadHTML('<meta charset="utf-8"><body>' . $html . '</body>', LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET);
-        $toc = [];
-        foreach ($document->getElementsByTagName('*') as $element) {
-            if (preg_match('/^h([1-6])$/', $element->tagName, $match) !== 1) {
-                continue;
-            }
-            $id = $element->getAttribute('id');
-            for ($parent = $element->parentNode; $id === '' && $parent instanceof DOMElement; $parent = $parent->parentNode) {
-                if ($parent->tagName === 'section') {
-                    $id = $parent->getAttribute('id');
-                }
-            }
-            $heading = $element->cloneNode(true);
-            if ($heading instanceof DOMElement) {
-                foreach (iterator_to_array($heading->getElementsByTagName('a')) as $anchor) {
-                    if (str_contains(' ' . $anchor->getAttribute('class') . ' ', ' permalink ')) {
-                        $anchor->parentNode?->removeChild($anchor);
+        if ($node->type === 'heading') {
+            $toc[] = ['level' => $node->f['level'] ?? 1, 'id' => $node->f['generatedId'] ?? null, 'text' => self::plainText($node)];
+        }
+        foreach ($node->children ?? [] as $child) {
+            self::headings($child, $toc);
+        }
+    }
+
+    /**
+     * @return list<array{level: int, id: string|null}>
+     */
+    private static function renderedHeadingShapes(string $html): array
+    {
+        preg_match_all('/<\/?section\b[^>]*>|<h[1-6]\b[^>]*>/i', $html, $matches);
+        $sections = [];
+        $headings = [];
+        foreach ($matches[0] as $tag) {
+            if (str_starts_with($tag, '</section')) {
+                array_pop($sections);
+            } elseif (str_starts_with($tag, '<section')) {
+                $sections[] = self::tagId($tag);
+            } elseif (preg_match('/^<h([1-6])\b/i', $tag, $level) === 1) {
+                $id = self::tagId($tag);
+                if ($id === null) {
+                    for ($i = count($sections) - 1; $i >= 0; --$i) {
+                        if ($sections[$i] !== null) {
+                            $id = $sections[$i];
+
+                            break;
+                        }
                     }
                 }
+                $headings[] = ['level' => (int)$level[1], 'id' => $id];
             }
-            $toc[] = ['level' => (int)$match[1], 'id' => $id === '' ? null : $id, 'text' => trim($heading->textContent ?? '')];
         }
 
-        return $toc;
+        return $headings;
+    }
+
+    private static function tagId(string $tag): ?string
+    {
+        if (preg_match('/\bid="([^"]*)"/i', $tag, $match) !== 1) {
+            return null;
+        }
+
+        return html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
     public static function plainText(Node $node): string
