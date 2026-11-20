@@ -13,11 +13,13 @@ use MarkupCarve\Carve\Extension\Bundle;
 use MarkupCarve\Carve\Extension\DocumentTransform;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
 use MarkupCarve\Carve\Extension\ExtensionProvider;
+use MarkupCarve\Carve\Extension\Extensions;
 use MarkupCarve\Carve\Include\FileResolver;
 use MarkupCarve\Carve\Include\IncludeResolver;
 use MarkupCarve\Carve\Node;
 use MarkupCarve\Carve\Output\OutputWriter;
 use RuntimeException;
+use Throwable;
 
 class CarveRenderer implements CarveRendererInterface
 {
@@ -97,7 +99,7 @@ class CarveRenderer implements CarveRendererInterface
     {
         [$source, $real] = self::readFile($path);
         $effective = $this->options($options);
-        $parseOptions = $this->engineOptions($effective, 'parse', $real);
+        $parseOptions = ['headingIds' => $effective['headingIds']] + $this->engineOptions($effective, 'parse', $real);
         $tree = Carve::parse($source, $parseOptions);
         $dependencies = $this->dependencies($tree, $parseOptions);
         $states = [];
@@ -297,7 +299,7 @@ class CarveRenderer implements CarveRendererInterface
             }
             array_push($extensions, ...$factory->create($extension));
         }
-        $out = ['extensions' => $extensions, 'headingIds' => $effective['headingIds']];
+        $out = ['extensions' => $extensions];
         if ($stage === 'render') {
             foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'softBreak', 'social', 'headingIds', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
                 $out[$key] = $effective[$key];
@@ -336,7 +338,7 @@ class CarveRenderer implements CarveRendererInterface
         $options = $this->engineOptions($effective, 'render', $file);
         [$options['extensions'], $transforms] = self::orderedExtensions(is_array($options['extensions']) ? $options['extensions'] : []);
         $rendered = Carve::renderWithDocumentTransforms($source, $transforms, $options);
-        $tree ??= Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
+        $tree ??= Carve::parse($source, ['headingIds' => $effective['headingIds']] + $this->engineOptions($effective, 'parse', $file));
         $frontmatter = null;
         $toc = [];
         foreach ($tree->children ?? [] as $node) {
@@ -345,7 +347,11 @@ class CarveRenderer implements CarveRendererInterface
             }
         }
         self::headings($tree, $toc);
-        self::applyRenderedHeadingShapes($toc, self::renderedHeadingShapes($rendered->html));
+        if ($effective['rawHtml'] === true && $effective['sections'] === false) {
+            self::applyTransformedHeadingShapes($toc, $tree, $transforms);
+        } else {
+            self::applyRenderedHeadingShapes($toc, self::renderedHeadingShapes($rendered->html));
+        }
         if ($file !== null && $dependencies === []) {
             $dependencies = $this->dependencies($tree, $this->engineOptions($effective, 'parse', $file));
         }
@@ -381,6 +387,31 @@ class CarveRenderer implements CarveRendererInterface
         }
 
         return [$definitions, $transforms];
+    }
+
+    /**
+     * @param array<array<string, mixed>> $toc
+     * @param \MarkupCarve\Carve\Node $tree
+     * @param array<\MarkupCarve\Carve\Extension\DocumentTransform> $transforms
+     */
+    private static function applyTransformedHeadingShapes(array &$toc, Node $tree, array $transforms): void
+    {
+        $view = Extensions::copy($tree);
+        try {
+            foreach ($transforms as $transform) {
+                $view = ($transform->run)($view);
+            }
+        } catch (Throwable) {
+            return;
+        }
+        $changed = [];
+        self::headings($view, $changed);
+        foreach ($toc as $index => &$heading) {
+            if (isset($changed[$index])) {
+                $heading['level'] = $changed[$index]['level'];
+                $heading['id'] = $changed[$index]['id'];
+            }
+        }
     }
 
     /**

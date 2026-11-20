@@ -42,6 +42,11 @@ final class ExtensionConfigTest extends TestCase
         self::assertStringContainsString('<h2>Title</h2>', (new CarveRenderer(['extensions' => ['heading_levels']]))->toHtml("# Title\n"));
     }
 
+    public function testHeadingIdsDoNotLeakIntoFormatOptions(): void
+    {
+        self::assertSame("= Title\n", (new CarveRenderer(['headingIds' => 'lower']))->format("# Title\n"));
+    }
+
     public function testExternalLinksNofollowOption(): void
     {
         $entry = ['type' => 'external_links', 'nofollow' => true];
@@ -100,6 +105,10 @@ final class ExtensionConfigTest extends TestCase
         $noIdsToc = $noIds->render("`<h3 id=\"raw\">Real preview</h3>`{=html}\n\n# Real\n")->toc();
         self::assertSame(2, $noIdsToc[0]['level']);
         self::assertNull($noIdsToc[0]['id']);
+        $noSections = new CarveRenderer(['rawHtml' => true, 'sections' => false, 'headingIds' => 'off', 'extensions' => ['heading_level_shift']]);
+        $noSectionsToc = $noSections->render("`<h3 id=\"raw\">Real preview</h3>`{=html}\n\n# Real\n")->toc();
+        self::assertSame(2, $noSectionsToc[0]['level']);
+        self::assertNull($noSectionsToc[0]['id']);
         $dataId = new CarveRenderer(['extensions' => [['type' => 'default_attributes', 'defaults' => ['heading' => ['data-id' => 'wrong']]]]]);
         self::assertSame('Real', $dataId->render("# Real\n")->toc()[0]['id']);
     }
