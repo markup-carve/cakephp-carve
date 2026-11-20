@@ -9,9 +9,9 @@ use Cake\Core\Configure;
 use InvalidArgumentException;
 use MarkupCarve\Carve\Carve;
 use MarkupCarve\Carve\Diagnostics\Diagnostic;
+use MarkupCarve\Carve\Extension\Bundle;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
 use MarkupCarve\Carve\Extension\ExtensionProvider;
-use MarkupCarve\Carve\Extension\Tabs;
 use MarkupCarve\Carve\Include\FileResolver;
 use MarkupCarve\Carve\Include\IncludeResolver;
 use MarkupCarve\Carve\Node;
@@ -37,6 +37,9 @@ class CarveRenderer implements CarveRendererInterface
             'mode' => 'interactive',
             'sections' => true,
             'smartTypography' => true,
+            'softBreak' => 'newline',
+            'social' => [],
+            'headingIds' => 'keep-case',
             'sourceLines' => false,
             'strictLosses' => false,
             'roundtrip' => false,
@@ -271,7 +274,6 @@ class CarveRenderer implements CarveRendererInterface
      * @param string $stage
      *
      * @throws \InvalidArgumentException
-     * @throws \RuntimeException
      *
      * @return array<string, mixed>
      */
@@ -281,21 +283,22 @@ class CarveRenderer implements CarveRendererInterface
         if (!is_array($effective['extensions'])) {
             throw new InvalidArgumentException('Invalid Carve extensions.');
         }
+        $factory = new ExtensionFactory();
         foreach ($effective['extensions'] as $extension) {
-            if (in_array($extension, ['frontmatter', 'table_of_contents', 'autolink', 'admonition', 'mentions'], true)) {
+            if (!is_string($extension) && !is_array($extension) && !$extension instanceof ExtensionDefinition && !$extension instanceof ExtensionProvider) {
+                throw new InvalidArgumentException('Invalid Carve extension entry.');
+            }
+            if ($extension === 'frontmatter' || $extension === 'admonition') {
                 continue;
             }
-            if ($extension === 'tabs') {
-                array_push($extensions, ...Tabs::extensions(true));
-            } elseif ($extension instanceof ExtensionDefinition || $extension instanceof ExtensionProvider) {
-                $extensions[] = $extension;
-            } else {
-                throw new RuntimeException('Carve 0.2 extension ' . (is_string($extension) ? $extension : get_debug_type($extension)) . ' is not available yet.');
+            if ($extension === 'mentions') {
+                throw new InvalidArgumentException('Configure the Carve social option for mentions.');
             }
+            array_push($extensions, ...$factory->create($extension));
         }
         $out = ['extensions' => $extensions];
         if ($stage === 'render') {
-            foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
+            foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'softBreak', 'social', 'headingIds', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
                 $out[$key] = $effective[$key];
             }
         }
@@ -330,7 +333,13 @@ class CarveRenderer implements CarveRendererInterface
     private function renderSource(string $source, array $effective, ?string $file = null, ?Node $tree = null, array $dependencies = []): RenderedCarve
     {
         $options = $this->engineOptions($effective, 'render', $file);
-        $rendered = Carve::renderWithDiagnostics($source, $options);
+        $transforms = [];
+        foreach (is_array($options['extensions']) ? $options['extensions'] : [] as $extension) {
+            if ($extension instanceof Bundle) {
+                array_push($transforms, ...array_values($extension->transforms()));
+            }
+        }
+        $rendered = Carve::renderWithDocumentTransforms($source, $transforms, $options);
         $tree ??= Carve::parse($source, $this->engineOptions($effective, 'parse', $file));
         $frontmatter = null;
         $toc = [];

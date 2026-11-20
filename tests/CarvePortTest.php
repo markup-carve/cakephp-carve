@@ -288,9 +288,9 @@ class CarvePortTest extends TestCase
         self::assertStringContainsString('Bold', (new CarveRenderer())->toAnsi('*Bold*'));
     }
 
-    public function testLegacyExtensionPending(): void
+    public function testHeadingPermalinksExtension(): void
     {
-        $this->markTestSkipped('Carve 0.2 heading_permalinks extension has no 0.2 definition yet.');
+        self::assertStringContainsString('class="permalink"', (new CarveRenderer(['extensions' => ['heading_permalinks']]))->toHtml("# Title\n"));
     }
 
     public function testInlineExtensionRendererRunsThroughTheHost(): void
