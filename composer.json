@@ -29,10 +29,14 @@
     "require-dev": {
         "php-collective/code-sniffer": "^0.6.0",
         "phpstan/phpstan": "^2.0",
+        "league/commonmark": "^2.9.2",
+        "php-collective/djot": "^0.1.35",
         "phpunit/phpunit": "^11.5 || ^12.0 || ^13.0",
         "symfony/yaml": "^7.0 || ^8.0"
     },
     "suggest": {
+        "league/commonmark": "Required for Markdown and GFM import (carve convert --from markdown|gfm)",
+        "php-collective/djot": "Required for Djot import (carve convert --from djot)",
         "symfony/yaml": "Parses YAML frontmatter for RenderedCarve::meta() and CarveView",
         "ext-yaml": "Alternative YAML frontmatter parser"
     },
