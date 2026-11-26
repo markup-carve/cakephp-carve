@@ -1,20 +1,28 @@
 import { defineConfig } from 'vitepress'
-import { carveMarkdown } from 'carve-grammars/shiki'
+
+const docsBase = process.env.DOCS_BASE ?? '/cakephp-carve/'
+const docsVersionText = process.env.DOCS_VERSION_TEXT
+const docsLatestBase = process.env.DOCS_LATEST_BASE ?? '/cakephp-carve/'
+const docsOtherBase = process.env.DOCS_OTHER_BASE ?? '/cakephp-carve/0.2/'
+const siteUrl = (base: string) => `https://markup-carve.github.io${base}`
 
 export default defineConfig({
   title: 'CakePHP Carve',
   description: 'CakePHP plugin for Carve: rendering, views, validation, ORM behavior, commands and caching',
 
-  base: '/cakephp-carve/',
+  base: docsBase,
 
   cleanUrls: true,
 
   head: [
-    ['link', { rel: 'icon', href: '/cakephp-carve/favicon.svg', type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', href: `${docsBase}favicon.svg`, type: 'image/svg+xml' }],
+    // The unreleased series must not compete with the released docs in search results.
+    // Marks a versioned build, so the theme styles only the version menu as a switch.
+    ...(docsVersionText ? [['meta', { name: 'docs-version', content: docsVersionText }] as [string, Record<string, string>]] : []),
+    ...(process.env.VITE_DOCS_SERIES === 'dev' ? [['meta', { name: 'robots', content: 'noindex' }] as [string, Record<string, string>]] : []),
   ],
 
   markdown: {
-    ...carveMarkdown(),
   },
 
   themeConfig: {
@@ -34,6 +42,13 @@ export default defineConfig({
           { text: 'Issues', link: 'https://github.com/markup-carve/cakephp-carve/issues' },
         ],
       },
+      ...(docsVersionText ? [{
+        text: docsVersionText,
+        items: [
+          { text: process.env.DOCS_LATEST_LABEL ?? '0.1 (latest)', link: siteUrl(docsLatestBase), target: '_self' },
+          { text: process.env.DOCS_OTHER_LABEL ?? '0.2 (dev)', link: siteUrl(docsOtherBase), target: '_self' },
+        ],
+      }] : []),
     ],
 
     sidebar: {
@@ -77,7 +92,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/markup-carve/cakephp-carve/edit/main/docs/:path',
+      pattern: `https://github.com/markup-carve/cakephp-carve/edit/${process.env.DOCS_EDIT_BRANCH ?? 'main'}/docs/:path`,
       text: 'Edit this page on GitHub',
     },
 

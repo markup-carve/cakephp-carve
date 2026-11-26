@@ -24,20 +24,30 @@
     "require": {
         "php": "^8.2",
         "cakephp/cakephp": "^5.2",
-        "markup-carve/carve-php": "^0.1.17"
+        "markup-carve/carve-php": "dev-next2#6ceebc52181efc1f5dfe6f5e7964b75c43f13a90"
     },
     "require-dev": {
         "php-collective/code-sniffer": "^0.6.0",
         "phpstan/phpstan": "^2.0",
+        "league/commonmark": "^2.9.2",
+        "php-collective/djot": "^0.1.35",
         "phpunit/phpunit": "^11.5 || ^12.0 || ^13.0",
         "symfony/yaml": "^7.0 || ^8.0"
     },
     "suggest": {
+        "league/commonmark": "Required for Markdown and GFM import (carve convert --from markdown|gfm)",
+        "php-collective/djot": "Required for Djot import (carve convert --from djot)",
         "symfony/yaml": "Parses YAML frontmatter for RenderedCarve::meta() and CarveView",
         "ext-yaml": "Alternative YAML frontmatter parser"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/markup-carve/carve-php"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "MarkupCarve\\CakeCarve\\": "src/"

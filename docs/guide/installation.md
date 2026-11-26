@@ -1,11 +1,11 @@
 # Installation
 
-Install the plugin in a CakePHP 5 application running PHP 8.2 or later. The package requires `cakephp/cakephp` 5.2 or later within major version 5 and `markup-carve/carve-php` 0.1.17 or later within the 0.1 series.
+Install the plugin in a CakePHP 5 application running PHP 8.2 or later. This unreleased `next2` branch pins the Carve PHP engine by commit through Composer VCS support. Install it for integration testing with `composer update`.
 
 ## Install and load the plugin
 
 ```sh
-composer require markup-carve/cakephp-carve
+composer update
 ```
 
 In `src/Application.php`, add the plugin in `bootstrap()`:
@@ -38,8 +38,8 @@ Put the `Carve` key in `config/app_local.php` or `config/app.php`:
 
 ```php
 'Carve' => [
-    'safeMode' => true,
-    'warnings' => false,
+    'rawHtml' => false,
+    'profile' => 'comment',
 ],
 ```
 
