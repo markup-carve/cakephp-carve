@@ -1,6 +1,6 @@
 # Rendering and options in Carve 0.2
 
-The plugin uses the `MarkupCarve\Carve\Carve` engine. The Composer dependency is pinned to its `next2` commit until an engine release is available.
+The plugin uses the `MarkupCarve\Carve\Carve` engine. The Composer dependency is pinned to a commit on its `main` branch until an engine release is available.
 
 ```php
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;

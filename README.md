@@ -1,6 +1,6 @@
 # CakePHP Carve 0.2
 
-This `next2` branch ports the CakePHP plugin to the unreleased Carve PHP engine. It pins the engine's `next2` commit through Composer's VCS support. The branch is for integration testing and is not a package release.
+This `main` branch ports the CakePHP plugin to the unreleased Carve 0.2 PHP engine. It pins an engine commit on `main` through Composer's VCS support. The branch is for integration testing and is not a package release.
 
 ## Install for development
 

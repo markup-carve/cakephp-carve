@@ -1,6 +1,6 @@
 # Installation
 
-Install the plugin in a CakePHP 5 application running PHP 8.2 or later. This unreleased `next2` branch pins the Carve PHP engine by commit through Composer VCS support. Install it for integration testing with `composer update`.
+Install the plugin in a CakePHP 5 application running PHP 8.2 or later. This unreleased `main` branch pins the Carve PHP engine by commit through Composer VCS support. Install it for integration testing with `composer update`.
 
 ## Install and load the plugin
 
