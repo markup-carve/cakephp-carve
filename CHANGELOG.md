@@ -2,15 +2,24 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-27
+
 ### Breaking
 
-- Rename the Carve 0.2 engine imports to `MarkupCarve\Carve\Carve` and pin the renamed engine at `db1624daf9`. Remove temporary `Carve2` names and 0.1 code paths.
+- Port the CakePHP plugin to the Carve 0.2 engine (carve-php `main`). Rendering, includes, formatting, linting, diagnostics, and HTML import use the 0.2 API; engine imports are `MarkupCarve\Carve\Carve`, and the temporary `Carve2` names and 0.1 code paths are gone.
+- Replace safe mode settings with `rawHtml` and URL policy, and accept 0.2 extension definitions.
+- Remove the BBCode importer; carve-php 0.2 has none.
 - Remove the 0.1 docs grammar dependency; code blocks use the built-in plain-text fallback until a 0.2 grammar is available.
 
-- Port the CakePHP plugin to the pinned Carve2 engine on `next2`.
-- Use Carve2 rendering, includes, formatting, linting, diagnostics, and HTML import. The 0.1 Markdown, Djot, and BBCode importers are removed.
-- Route text, Markdown, and ANSI output through the writer registry with clear errors until writers are registered.
-- Replace safe mode settings with `rawHtml` and URL policy, and accept 0.2 extension definitions.
+### Fixes
+
+- Key the render cache on the installed carve-php commit, so an engine upgrade no longer serves HTML from the previous engine (#17).
+
+### Improvements
+
+- Text, Markdown, and ANSI output use the engine's built-in writers (#12).
+- Configure named 0.2 extension bundles through `extensions`, for example `heading_permalinks`, `autolink`, `table_of_contents`, `wikilinks`, `citations`, and `default_attributes` (#14).
+- Markdown and Djot import work again on 0.2; `markdown` and `gfm` both read GitHub Flavored Markdown (#16). Install `league/commonmark` or `php-collective/djot` to use them (#20).
 
 ## [0.1.4] - 2026-11-12
 
