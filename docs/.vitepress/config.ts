@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 const docsBase = process.env.DOCS_BASE ?? '/cakephp-carve/'
 const docsVersionText = process.env.DOCS_VERSION_TEXT
 const docsLatestBase = process.env.DOCS_LATEST_BASE ?? '/cakephp-carve/'
-const docsOtherBase = process.env.DOCS_OTHER_BASE ?? '/cakephp-carve/0.2/'
+const docsOtherBase = process.env.DOCS_OTHER_BASE ?? '/cakephp-carve/0.1/'
 const siteUrl = (base: string) => `https://markup-carve.github.io${base}`
 
 export default defineConfig({
@@ -45,8 +45,8 @@ export default defineConfig({
       ...(docsVersionText ? [{
         text: docsVersionText,
         items: [
-          { text: process.env.DOCS_LATEST_LABEL ?? '0.1 (latest)', link: siteUrl(docsLatestBase), target: '_self' },
-          { text: process.env.DOCS_OTHER_LABEL ?? '0.2 (dev)', link: siteUrl(docsOtherBase), target: '_self' },
+          { text: process.env.DOCS_LATEST_LABEL ?? '0.2 (latest)', link: siteUrl(docsLatestBase), target: '_self' },
+          { text: process.env.DOCS_OTHER_LABEL ?? '0.1', link: siteUrl(docsOtherBase), target: '_self' },
         ],
       }] : []),
     ],
