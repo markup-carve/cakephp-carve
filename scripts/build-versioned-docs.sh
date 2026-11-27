@@ -3,16 +3,16 @@ set -euo pipefail
 
 # Ported from markup-carve/carve. An empty ref builds this checkout itself; any other ref is built in its own worktree.
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
-latest_ref="${DOCS_LATEST_REF-origin/0.1}"
+latest_ref="${DOCS_LATEST_REF-}"
 latest_base="${DOCS_LATEST_BASE:-/cakephp-carve/}"
-latest_label="${DOCS_LATEST_LABEL:-0.1 (latest)}"
-latest_edit_branch="${DOCS_LATEST_EDIT_BRANCH:-0.1}"
+latest_label="${DOCS_LATEST_LABEL:-0.2 (latest)}"
+latest_edit_branch="${DOCS_LATEST_EDIT_BRANCH:-main}"
 latest_series="${DOCS_LATEST_SERIES:-}"
-secondary_ref="${DOCS_SECONDARY_REF-}"
-secondary_base="${DOCS_SECONDARY_BASE:-/cakephp-carve/0.2/}"
-secondary_label="${DOCS_SECONDARY_LABEL:-0.2 (dev)}"
-secondary_edit_branch="${DOCS_SECONDARY_EDIT_BRANCH:-main}"
-secondary_series="${DOCS_SECONDARY_SERIES-dev}"
+secondary_ref="${DOCS_SECONDARY_REF-origin/0.1}"
+secondary_base="${DOCS_SECONDARY_BASE:-/cakephp-carve/0.1/}"
+secondary_label="${DOCS_SECONDARY_LABEL:-0.1}"
+secondary_edit_branch="${DOCS_SECONDARY_EDIT_BRANCH:-0.1}"
+secondary_series="${DOCS_SECONDARY_SERIES-}"
 combined_dist="$repo_dir/docs/.vitepress/dist-versioned"
 worktrees=()
 
