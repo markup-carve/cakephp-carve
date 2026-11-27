@@ -1,11 +1,11 @@
 # CakePHP Carve 0.2
 
-This `main` branch ports the CakePHP plugin to the unreleased Carve 0.2 PHP engine. It pins an engine commit on `main` through Composer's VCS support. The branch is for integration testing and is not a package release.
+CakePHP plugin for the Carve 0.2 PHP engine. Carve 0.1 users stay on the `0.1` branch and its [0.1 docs](https://markup-carve.github.io/cakephp-carve/0.1/).
 
-## Install for development
+## Install
 
 ```sh
-composer update
+composer require markup-carve/cakephp-carve:^0.2
 ```
 
 Enable the plugin and helper in your CakePHP application:
