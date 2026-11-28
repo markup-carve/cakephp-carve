@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Register the standard table of contents renderers that carve-php main requires; move carve-php to main.
+
 ### Breaking
 
 - Rename the Carve 0.2 engine imports to `MarkupCarve\Carve\Carve` and pin the renamed engine at `db1624daf9`. Remove temporary `Carve2` names and 0.1 code paths.

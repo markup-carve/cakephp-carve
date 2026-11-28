@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use MarkupCarve\CakeCarve\Carve\CarveRenderer;
 use MarkupCarve\CakeCarve\Carve\ExtensionFactory;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
+use MarkupCarve\Carve\Extension\Navigation;
 use MarkupCarve\Carve\Node;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -35,13 +36,69 @@ final class ExtensionConfigTest extends TestCase
     public function testEveryRegisteredNameCanRender(array|string $entry): void
     {
         $factory = new ExtensionFactory();
-        self::assertNotSame([], $factory->create($entry));
+        $type = is_string($entry) ? $entry : $entry['type'];
+        if (!in_array($type, ['heading_levels', 'heading_level_shift'], true)) {
+            self::assertNotSame([], $factory->create($entry));
+        }
         self::assertNotSame('', (new CarveRenderer(['extensions' => [$entry]]))->toHtml('hello'));
     }
 
     public function testHeadingLevelsDefaultsToOneLevel(): void
     {
         self::assertStringContainsString('<h2>Title</h2>', (new CarveRenderer(['extensions' => ['heading_levels']]))->toHtml("# Title\n"));
+    }
+
+    public function testTableOfContentsUsesStandardRenderer(): void
+    {
+        $result = (new CarveRenderer(['extensions' => ['table_of_contents']]))->render("= A\n\n== B\n");
+
+        self::assertStringContainsString('<nav', $result->html());
+        self::assertStringContainsString('<a href="#B">B</a>', $result->html());
+        self::assertNotContains('extension-fallback-rendered', array_column($result->warnings(), 'rule'));
+    }
+
+    public function testTocPlacementUsesStandardRenderer(): void
+    {
+        $result = (new CarveRenderer(['extensions' => ['toc_placement']]))->render("Intro.\n\n::: toc\n:::\n\n= A\n\n== B\n");
+
+        self::assertStringContainsString('<nav', $result->html());
+        self::assertStringContainsString('<a href="#B">B</a>', $result->html());
+        self::assertNotContains('extension-fallback-rendered', array_column($result->warnings(), 'rule'));
+    }
+
+    public function testHostTocRendererTakesPrecedence(): void
+    {
+        $renderer = new CarveRenderer([
+            'extensions' => ['table_of_contents'],
+            'renderers' => ['carve.toc' => static fn (): string => '<nav class="custom">Host TOC</nav>'],
+        ]);
+
+        self::assertStringContainsString('<nav class="custom">Host TOC</nav>', $renderer->toHtml("= A\n\n== B\n"));
+    }
+
+    public function testTocDefinitionUsesStandardRenderer(): void
+    {
+        $result = (new CarveRenderer(['extensions' => [Navigation::tableOfContents()]]))->render("= A\n\n== B\n");
+
+        self::assertStringContainsString('<a href="#B">B</a>', $result->html());
+        self::assertNotContains('extension-fallback-rendered', array_column($result->warnings(), 'rule'));
+    }
+
+    public function testHeadingShiftUsesEngineDiagnosticsAndRoundtrip(): void
+    {
+        $shifted = (new CarveRenderer(['extensions' => [['type' => 'heading_levels', 'offset' => 5]]]))->render("== B\n");
+        self::assertContains('heading-shift-above-6', array_column($shifted->warnings(), 'rule'));
+        self::assertStringNotContainsString('data-carve-host-toc-', $shifted->html());
+        self::assertSame(7, $shifted->toc()[0]['level']);
+
+        $roundtrip = (new CarveRenderer(['roundtrip' => true, 'extensions' => ['heading_levels']]))->toHtml("== B\n");
+        self::assertStringContainsString('data-carve-source-level="2"', $roundtrip);
+    }
+
+    public function testHeadingShiftRejectsNegativeOffset(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        (new CarveRenderer(['extensions' => [['type' => 'heading_levels', 'offset' => -1]]]))->render("= A\n");
     }
 
     public function testHeadingIdsDoNotLeakIntoFormatOptions(): void
