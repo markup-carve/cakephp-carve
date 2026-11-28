@@ -19,6 +19,7 @@ return [
         'includeRoot' => null, // Absolute root for renderFile() and lintFile().
         'includeResolver' => null, // Carve IncludeResolver or callable.
         'extensions' => [], // Carve ExtensionDefinition or ExtensionProvider.
+        'renderers' => [], // Extension name => 'standard', closure, or standard option map.
         'writers' => [], // Carve OutputWriter instances for text, markdown and ansi.
         'presets' => [
             'default' => [],

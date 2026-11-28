@@ -49,6 +49,7 @@ class CarveRenderer implements CarveRendererInterface
             'symbols' => [],
             'labels' => [],
             'extensions' => [],
+            'renderers' => [],
             'writers' => [],
             'includes' => null,
             'includeRoot' => null,
@@ -64,7 +65,7 @@ class CarveRenderer implements CarveRendererInterface
         $global = is_array($global) ? $global : [];
         $this->config = array_replace_recursive($defaults, $global, $config);
         foreach ([$global, $config] as $override) {
-            foreach (['extensions', 'writers', 'urlPolicy', 'includes'] as $key) {
+            foreach (['extensions', 'renderers', 'writers', 'urlPolicy', 'includes'] as $key) {
                 if (array_key_exists($key, $override)) {
                     $this->config[$key] = $override[$key];
                 }
@@ -283,6 +284,8 @@ class CarveRenderer implements CarveRendererInterface
     private function engineOptions(array $effective, string $stage, ?string $file = null): array
     {
         $extensions = [];
+        $standardRenderers = [];
+        $headingShift = 0;
         if (!is_array($effective['extensions'])) {
             throw new InvalidArgumentException('Invalid Carve extensions.');
         }
@@ -297,10 +300,34 @@ class CarveRenderer implements CarveRendererInterface
             if ($extension === 'mentions') {
                 throw new InvalidArgumentException('Configure the Carve social option for mentions.');
             }
-            array_push($extensions, ...$factory->create($extension));
+            $type = is_string($extension) ? $extension : (is_array($extension) ? ($extension['type'] ?? null) : null);
+            if ($type === 'heading_levels' || $type === 'heading_level_shift') {
+                $offset = is_array($extension) ? ($extension['offset'] ?? 1) : 1;
+                if (!is_int($offset)) {
+                    throw new InvalidArgumentException('Heading level offset must be an integer from 0 to 5.');
+                }
+                $headingShift += $offset;
+            }
+            $created = $factory->create($extension);
+            foreach ($created as $entry) {
+                foreach ($entry instanceof ExtensionProvider ? $entry->definitions() : [$entry] as $definition) {
+                    if (($definition->name === 'carve.toc' || $definition->name === 'carve.tocPlacement') && $definition->renderer === null) {
+                        $standardRenderers[$definition->name] = 'standard';
+                    }
+                }
+            }
+            array_push($extensions, ...$created);
         }
         $out = ['extensions' => $extensions];
         if ($stage === 'render') {
+            if ($headingShift > 5) {
+                throw new InvalidArgumentException('Combined heading level offset must not exceed 5.');
+            }
+            $out['headingShift'] = $headingShift;
+            if (!is_array($effective['renderers'])) {
+                throw new InvalidArgumentException('Invalid Carve renderers.');
+            }
+            $out['renderers'] = array_replace($standardRenderers, $effective['renderers']);
             foreach (['rawHtml', 'urlPolicy', 'profile', 'mode', 'sections', 'smartTypography', 'softBreak', 'social', 'headingIds', 'sourceLines', 'strictLosses', 'roundtrip', 'symbols', 'labels'] as $key) {
                 $out[$key] = $effective[$key];
             }
@@ -507,7 +534,7 @@ class CarveRenderer implements CarveRendererInterface
      */
     private static function markedHeadingShapes(string $html, string $markerName, bool $sectionsEnabled): array
     {
-        preg_match_all('/<\/?section\b[^>]*>|<h[1-6]\b[^>]*>/i', $html, $matches);
+        preg_match_all('/<\/?section\b[^>]*>|<(?:h[1-6]|div)\b[^>]*>/i', $html, $matches);
         $sections = [];
         $shapes = [];
         foreach ($matches[0] as $tag) {
@@ -515,12 +542,21 @@ class CarveRenderer implements CarveRendererInterface
                 array_pop($sections);
             } elseif (str_starts_with($tag, '<section')) {
                 $sections[] = self::tagId($tag);
-            } elseif (preg_match('/^<h([1-6])\b/i', $tag, $level) === 1 && preg_match('/\s' . preg_quote($markerName, '/') . '="(\d+)"/', $tag, $marker) === 1) {
+            } elseif (preg_match('/\s' . preg_quote($markerName, '/') . '="(\d+)"/', $tag, $marker) === 1) {
+                $level = null;
+                if (preg_match('/^<h([1-6])\b/i', $tag, $heading) === 1) {
+                    $level = (int)$heading[1];
+                } elseif (preg_match('/\srole="heading"/', $tag) === 1 && preg_match('/\saria-level="(\d+)"/', $tag, $heading) === 1) {
+                    $level = (int)$heading[1];
+                }
+                if ($level === null) {
+                    continue;
+                }
                 $id = self::tagId($tag);
                 if ($id === null && $sectionsEnabled && $sections !== []) {
                     $id = $sections[array_key_last($sections)];
                 }
-                $shapes[(int)$marker[1]] = ['level' => (int)$level[1], 'id' => $id];
+                $shapes[(int)$marker[1]] = ['level' => $level, 'id' => $id];
             }
         }
 
@@ -529,7 +565,7 @@ class CarveRenderer implements CarveRendererInterface
 
     private static function stripHeadingMarkers(string $html, string $markerName): string
     {
-        return preg_replace_callback('/<h[1-6]\b[^>]*>/i', static fn (array $match): string => preg_replace('/\s' . preg_quote($markerName, '/') . '="\d+"/', '', $match[0]) ?? $match[0], $html) ?? $html;
+        return preg_replace_callback('/<(?:h[1-6]|div)\b[^>]*>/i', static fn (array $match): string => preg_replace('/\s' . preg_quote($markerName, '/') . '="\d+"/', '', $match[0]) ?? $match[0], $html) ?? $html;
     }
 
     private static function tagId(string $tag): ?string
